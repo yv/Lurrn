@@ -1,0 +1,182 @@
+# -*- mode:cython -*-
+cdef extern from "Python.h":
+    ctypedef int Py_ssize_t
+    int PyObject_AsCharBuffer(object obj, char **buffer, Py_ssize_t *buffer_len) except -1
+    int PyObject_AsReadBuffer(object obj, char **buffer, Py_ssize_t *buffer_len) except -1
+    int PyObject_CheckReadBuffer(object o)
+    int PyObject_AsWriteBuffer(object obj, char **buffer, Py_ssize_t *buffer_len) except -1
+    object PyString_FromStringAndSize(char *v, Py_ssize_t len)
+    void *PyMem_Malloc(int)
+    void PyMem_Free(void *p)
+
+cdef extern from "string.h":
+    ctypedef int size_t
+    void *memcpy(void *dest, void *src, size_t n)
+
+cdef extern from "math.h":
+    double log(double x)
+    double log1p(double x)
+    double sqrt(double x)
+    double fabs(double x)
+    double pow(double x, double y)
+    double M_LN2
+
+cdef extern from "math_stuff.h":
+    double inverse_erf(double x)
+
+import numpy
+cimport numpy
+
+cdef extern from "cxx_gram.h":
+    ctypedef unsigned int coordinate_t
+{% for t in wanted_types -%}
+{%- set T,tt,np_t = t %}
+    ctypedef {{tt}} *const_{{tt}}_ptr "const {{tt}} *"
+{%- for N in range(1,4) %}
+    struct c_CItem{{T}}{{N}} "CountItem<{{N}},{{tt}}>":
+        int *addr
+{%- if T!='V' %}
+        {{tt}} item
+    struct c_Vector{{T}} "std::vector<{{tt}}>":
+        size_t size()
+        void reserve(size_t n)
+        void resize(size_t n)
+        void push_back({{tt}} item)
+        {{tt}} at(int pos)
+        void cxx_destructor "~vector" ()
+{%- endif %}
+    struct c_VecIter{{T}}{{N}} "std::vector<CountItem<{{N}},{{tt}}> >::iterator"
+    struct c_SmallerAddr{{T}}{{N}} "smallerAddr<{{N}},{{tt}}>":
+        pass
+    struct c_Vec{{T}}{{N}} "std::vector<CountItem<{{N}},{{tt}}> >":
+        size_t size()
+        void reserve(size_t n)
+        void resize(size_t n)
+        void push_back(c_CItem{{T}}{{N}} item)
+        c_CItem{{T}}{{N}} at(int pos)
+        c_VecIter{{T}}{{N}} begin()
+        c_VecIter{{T}}{{N}} end()
+        void cxx_destructor "~vector" ()
+    c_CItem{{T}}{{N}} c_Vec{{T}}{{N}}_get_pointer "get_pointer" (c_Vec{{T}}{{N}} *v, size_t k)
+    void c_IVec{{T}}{{N}}_sort "sort" (c_VecIter{{T}}{{N}} pos0, c_VecIter{{T}}{{N}} pos1, c_SmallerAddr{{T}}{{N}} comp)
+{% if T=='V' %}
+    void c_compactify{{T}}{{N}} "compactify_set"(c_Vec{{T}}{{N}} *v)
+    bint c_get_count{{T}}{{N}} "get_count_set"(c_Vec{{T}}{{N}} *v,
+                                    c_CItem{{T}}{{N}})
+{% else %}
+    void c_compactify{{T}}{{N}} "compactify"(c_Vec{{T}}{{N}} *v)
+    {{tt}} c_get_count{{T}}{{N}} "get_count_v"(c_Vec{{T}}{{N}} *v,
+                                    c_CItem{{T}}{{N}})
+{%- endif %}
+{%- endfor %}
+    struct c_CSRMatrix{{T}} "CSRMatrix<{{tt}}>":
+        coordinate_t num_rows
+        int *offsets
+        coordinate_t *rightColumns
+        {{tt}} *values
+        void write_binary(int fileno)
+        c_CSRMatrix{{T}} *transpose()
+        void compute_left_marginals({{tt}} *vec)
+        void compute_right_marginals({{tt}} *vec)
+        void compute_right_squared_marginals({{tt}} *vec)
+    c_CSRMatrix{{T}} *new_CSRMatrix{{T}} "new CSRMatrix<{{tt}}>" ()
+    c_CSRMatrix{{T}} *vec2csr{{T}} "vec2csr"(c_Vec{{T}}2 *v)
+    c_CSRMatrix{{T}} *add_csr{{T}} "add_csr"(c_CSRMatrix{{T}} *a,c_CSRMatrix{{T}} *b)
+    int csrFromBuffer{{T}} "csrFromBuffer"(void *buf, c_CSRMatrix{{T}} *m)
+    c_CSRMatrix{{T}} *new_csr{{T}} "new_csr<{{tt}}>"(int numRows, int numNonZero)
+    void print_csr{{T}} "print_csr<{{tt}}>"(c_CSRMatrix{{T}} *v)
+{% endfor %}
+    void cxx_delete "delete" (void *p)
+    void cxx_deleteA "delete []"(void *p)
+
+cdef extern from *:
+    ctypedef char* const_char_ptr "const char*"
+
+cdef class CSRMatrixD
+
+{% for t in wanted_types -%}
+{%- set T,tt,t_np = t %}## {{T}} -> {{tt}}
+{%- if T != 'V' %}
+cdef class CSRMatrix{{T}}
+cdef class SparseVector{{T}}
+{%- endif %}
+
+{%- for N in range(1,4) %}
+{% macro vars(prefix) -%}
+{{prefix}}0
+{%- for i in range(1,N) -%},{{prefix}}{{i}}
+{%- endfor -%}
+{%- endmacro %}
+
+cdef class Vec{{T}}{{N}}:
+    cdef c_Vec{{T}}{{N}} vec
+    cdef bint is_compact
+{%- if T=='V' %}
+    cpdef bint get_count(self, {{vars('coordinate_t k')}})
+{%- else %}
+    cpdef {{tt}} get_count(self, {{vars('coordinate_t k')}})
+{%- endif %}
+    cdef void compactify(self)
+    cdef void ensure_compact(self)
+{%- if T=='V' %}
+    cdef void c_add(self, {{vars('coordinate_t k')}})
+{%- else %}
+    cdef void c_add(self, {{vars('coordinate_t k')}}, {{tt}} item)
+{%- endif %}
+{%- if N==1 and T!='V'%}
+    cpdef SparseVector{{T}} to_sparse(self)
+{%- elif N==2 and T!='V'%}
+    cpdef CSRMatrix{{T}} to_csr(self)
+{%- endif %}
+    cpdef int get_maxcol(self, int k=*)
+    cpdef numpy.ndarray get_type_counts(self, int k=*)
+    cpdef Vec{{T}}{{N}} remap(self, int k, numpy.ndarray filt)
+{%- endfor %}
+
+{%- if T!='V' %}
+cdef class CSRMatrix{{T}}:
+    cdef c_CSRMatrix{{T}} *mat
+    cdef int cache_maxcol
+    # buf contains a reference to a buffer that contains the
+    # arrays in the case of a mmap'ed matrix
+    cdef object buf
+    cdef void set_matrix(self,c_CSRMatrix{{T}} *mat_new)
+    cpdef {{tt}} get_count(self, coordinate_t k, coordinate_t k2)
+    cpdef int get_maxcol(self)
+    cpdef CSRMatrixD transform_mi(self)
+    cpdef CSRMatrixD transform_mi_discount(self)
+    cpdef CSRMatrixD transform_ll(self)
+    cpdef CSRMatrixD transform_l1(self)
+    cpdef CSRMatrix{{T}} apply_threshold(self, numpy.ndarray thresholds)
+    cpdef CSRMatrixD apply_scaling(self, numpy.ndarray thresholds)
+    cpdef CSRMatrix{{T}} fromVectors(self, vectors)
+
+cdef class SparseVector{{T}}:
+    cdef object buf
+    cdef {{tt}} *vals_ptr
+    cdef coordinate_t *idx_ptr
+    cdef unsigned int my_len
+    cpdef int from_dense(self, {{tt}}[:] dense)
+    cpdef {{tt}} dotSelf(self)
+    cdef {{tt}} _dotFull(self, const_{{tt}}_ptr full_ptr)
+    cdef {{tt}} _dotFull_partial(self, const_{{tt}}_ptr full_ptr, int my_len)
+    cpdef {{tt}} dotSparse(self, SparseVector{{T}} other)
+    cdef void _axpy(self, {{tt}} *x_ptr, {{tt}} a)
+    cpdef {{tt}} sqdist(self, SparseVector{{T}} other)
+    cpdef double jaccard(self, SparseVector{{T}} other)
+    cpdef double cosine(self, SparseVector{{T}} other)
+    cpdef double min_sum(self, SparseVector{{T}} other)
+    cpdef double jsd_unnorm(self, SparseVector{{T}} other)
+    cpdef double skew_unnorm(self, SparseVector{{T}} other, double alpha)
+    cpdef SparseVector{{T}} min_vals(self, SparseVector{{T}} other)
+    cpdef double norm_l1(self)
+    cpdef double norm_l2(self)
+    cpdef double norm_lp(self, double p)
+cdef class SparseVectors{{T}}:
+    cdef object vecs
+    cdef c_Vector{{T}} weights
+    cpdef SparseVector{{T}} to_vec(self)
+    cpdef add(self, SparseVector{{T}} vec, {{tt}} weight=*)
+    cdef {{tt}} _dotFull(self, const_{{tt}}_ptr full_ptr)
+{%- endif %}
+{% endfor %}

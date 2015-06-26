@@ -1,0 +1,4 @@
+pyx_src/.*\.cpp$
+~$
+\.ropeproject
+build/

@@ -1,0 +1,1629 @@
+# -*- mode:cython *-
+# vi:ft=python
+import mmap
+import sys
+import numpy
+
+cdef unsigned int BIG_ITEMS=1000000
+DEF CHUNK_SIZE = 256
+
+cdef double logB(double n, double p, double k):
+    cdef double lp, lq
+    if p==0.0 or p==1.0:
+        return 0.0
+    else:
+        lp=log(p)
+        lq=log1p(-p)
+    return k*lp+(n-k)*lq
+
+{% for t in wanted_types -%}
+{%- set T,tt,t_np = t %}{%- if T!='V' -%}## {{T}} -> {{tt}}, {{t_np}}
+
+cdef class Vec{{T}}2
+cdef class CSRMatrix{{T}}_item_iter
+cdef class SparseVector{{T}}
+cdef SparseVector{{T}} emptyvec_{{T}}
+
+cdef class CSRMatrix{{T}}:
+    def __cinit__(self, vecs=None):
+        self.mat=NULL
+        self.cache_maxcol=-1
+        if vecs is not None:
+            self.fromVectors(vecs)
+    cdef void set_matrix(self,c_CSRMatrix{{T}} *mat_new):
+        self.mat=mat_new
+        self.cache_maxcol=-1
+    cpdef CSRMatrix{{T}} fromVectors(self, vectors):
+        cdef int spaceNeeded=0
+        cdef int i=0
+        cdef int j=0
+        cdef SparseVector{{T}} vec
+        cdef c_CSRMatrix{{T}} *c_result
+        cdef CSRMatrix{{T}} result
+        for vec in vectors:
+            spaceNeeded+=vec.my_len
+            i+=1
+        c_result=new_csr{{T}}(i,spaceNeeded)
+        i=0
+        spaceNeeded=0
+        for vec in vectors:
+            c_result.offsets[i]=spaceNeeded
+            for j from 0<=j<vec.my_len:
+                 c_result.rightColumns[spaceNeeded]=vec.idx_ptr[j]
+                 c_result.values[spaceNeeded]=vec.vals_ptr[j]
+                 spaceNeeded+=1
+            i+=1
+        c_result.offsets[i]=spaceNeeded
+        self.set_matrix(c_result)
+        return self
+    def __lshift__(CSRMatrix{{T}} self,int k):
+        cdef CSRMatrix{{T}} result
+        cdef c_CSRMatrix{{T}} *c_mat
+        cdef c_CSRMatrix{{T}} *c_result
+        cdef int i, nnz
+        c_mat=self.mat
+        nnz=c_mat.offsets[c_mat.num_rows]
+        c_result=new_csr{{T}}(c_mat.num_rows, nnz)
+        for i from 0<=i<=c_mat.num_rows:
+            c_result.offsets[i]=c_mat.offsets[i]
+        for i from 0<=i<nnz:
+            c_result.rightColumns[i]=c_mat.rightColumns[i]+k
+        for i from 0<=i<nnz:
+            c_result.values[i]=c_mat.values[i]
+        result=CSRMatrix{{T}}()
+        result.set_matrix(c_result)
+        return result
+    def __ilshift__(CSRMatrix{{T}} self, int k):
+        cdef c_CSRMatrix{{T}} *c_mat
+        cdef int i, nnz
+        c_mat=self.mat
+        nnz=c_mat.offsets[c_mat.num_rows]
+        for i from 0<=i<nnz:
+            c_mat.rightColumns[i]+=k
+        return self
+    def print_csr(self):
+        print_csr{{T}}(self.mat)
+    def get_size(self):
+        return self.mat.offsets[self.mat.num_rows]
+    def __len__(self):
+        return self.mat.num_rows
+    def __getitem__(self,k):
+        cdef int off1, off2
+        cdef SparseVector{{T}} res
+        if not (k>=0 and k<self.mat.num_rows):
+            raise IndexError
+        off1=self.mat.offsets[k]
+        off2=self.mat.offsets[k+1]
+        if off1==off2:
+            return emptyvec_{{T}}
+        res=SparseVector{{T}}()
+        res.buf=self
+        res.my_len=off2-off1
+        res.vals_ptr=&self.mat.values[off1]
+        res.idx_ptr=&self.mat.rightColumns[off1]
+        return res
+    def item_iter(self):
+        if self.mat.num_rows>0:
+            return CSRMatrix{{T}}_item_iter(self)
+        else:
+            return ()
+    def to_scipy(self):
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] data
+        cdef numpy.ndarray[numpy.int32_t, ndim=1] indices
+        cdef numpy.ndarray[numpy.int32_t, ndim=1] indptr
+        cdef int num_rows=self.mat.num_rows
+        cdef int max_offset=self.mat.offsets[num_rows]
+        cdef int i,j
+        indptr=numpy.zeros(num_rows+1, numpy.int32)
+        indices=numpy.zeros(max_offset, numpy.int32)
+        data=numpy.zeros(max_offset, numpy.{{t_np}})
+        for i from 0<=i<=num_rows:
+            indptr[i]=self.mat.offsets[i]
+        for i from 0<=i<max_offset:
+            indices[i]=self.mat.rightColumns[i]
+        for i from 0<=i<max_offset:
+            data[i]=self.mat.values[i]
+        return (data,indices,indptr)
+    cpdef int get_maxcol(self):
+        cdef int result=0
+        cdef int col_max
+        cdef coordinate_t i
+        cdef int off1, off2
+        if self.cache_maxcol>=0:
+            return self.cache_maxcol
+        for i from 0<=i<self.mat.num_rows:
+           off1=self.mat.offsets[i]
+           off2=self.mat.offsets[i+1]
+           if off2>off1:
+              col_max=self.mat.rightColumns[off2-1]
+              if result<col_max:
+                 result=col_max
+        self.cache_maxcol=result
+        return result
+    cpdef CSRMatrixD transform_mi(self):
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] marginals_l
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] marginals_r
+        cdef VecD2 tmp=VecD2()
+        cdef coordinate_t k, i
+        cdef int off1, off2
+        cdef double v, log_v, log_N, log1, log2
+        if self.mat.num_rows<100000:
+            tmp.vec.reserve(self.mat.offsets[self.mat.num_rows])
+        else:
+            tmp.vec.reserve(100000)
+        marginals_l=self.left_marginals()
+        marginals_r=self.right_marginals()
+        log_N=log(marginals_l.sum())
+        for k from 0<=k<self.mat.num_rows:
+            log1=log(marginals_l[k])-log_N
+            off1=self.mat.offsets[k]
+            off2=self.mat.offsets[k+1]
+            for i from off1<=i<off2:
+               v=self.mat.values[i]
+               if v>0:
+                   log2=log(marginals_r[self.mat.rightColumns[i]])
+                   log_v=log(v)-log2-log1
+                   if log_v>0:
+                      tmp.add_count(k,self.mat.rightColumns[i],log_v)
+        return tmp.to_csr()
+    cpdef CSRMatrixD transform_mi_discount(self):
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] marginals_l
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] marginals_r
+        cdef VecD2 tmp=VecD2()
+        cdef coordinate_t k, i
+        cdef int off1, off2
+        cdef double marg_l, marg_r, log_corr1, log_corr2
+        cdef double v, log_v, log_N, log1, log2
+        if self.mat.num_rows<100000:
+            tmp.vec.reserve(self.mat.offsets[self.mat.num_rows])
+        else:
+            tmp.vec.reserve(100000)
+        marginals_l=self.left_marginals()
+        marginals_r=self.right_marginals()
+        log_N=log(marginals_l.sum())
+        for k from 0<=k<self.mat.num_rows:
+            marg_l=marginals_l[k]
+            log1=log(marg_l)-log_N
+            off1=self.mat.offsets[k]
+            off2=self.mat.offsets[k+1]
+            for i from off1<=i<off2:
+               v=self.mat.values[i]
+               if v>0:
+                   marg_r=marginals_r[self.mat.rightColumns[i]]
+                   log2=log(marg_r)
+                   log_corr1=log1p(-1.0/(v+1.0))
+                   if marg_l<marg_r:
+                       log_corr2=log1p(-1.0/(marg_l+1.0))
+                   else:
+                       log_corr2=log1p(-1.0/(marg_r+1.0))
+                   log_v=log(v)-log2-log1+log_corr1+log_corr2
+                   if log_v>0:
+                      tmp.add_count(k,self.mat.rightColumns[i],log_v)
+        return tmp.to_csr()
+    cpdef CSRMatrixD transform_ll(self):
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] marginals_l
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] marginals_r
+        cdef VecD2 tmp=VecD2()
+        cdef coordinate_t k, i
+        cdef int off1, off2
+        cdef double marg_l, marg_r, c, c1, c2
+        cdef double p, p1, pn1, ll
+        if self.mat.num_rows<100000:
+            tmp.vec.reserve(self.mat.offsets[self.mat.num_rows])
+        else:
+            tmp.vec.reserve(100000)
+        marginals_l=self.left_marginals()
+        marginals_r=self.right_marginals()
+        c=marginals_l.sum()
+        for k from 0<=k<self.mat.num_rows:
+            c1=marginals_l[k]
+            off1=self.mat.offsets[k]
+            off2=self.mat.offsets[k+1]
+            for i from off1<=i<off2:
+               c12=self.mat.values[i]
+               if c12>0:
+                   c2=marginals_r[self.mat.rightColumns[i]]
+                   p=c2/c
+                   p1=c12/c1
+                   if p1>p:
+                       pn1=(c2-c12)/(c-c1)
+                       ll=(-logB(c1,p,c12)-logB(c-c1,p,c2-c12)
+                           +logB(c1,p1,c12)+logB(c-c1,pn1,c2-c12))
+                       tmp.add_count(k,self.mat.rightColumns[i],ll)
+        return tmp.to_csr()
+    cpdef CSRMatrixD transform_l1(self):
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] marginals_l
+        cdef VecD2 tmp=VecD2()
+        cdef coordinate_t k, i
+        cdef int off1, off2
+        cdef double v, marg_l
+        if self.mat.num_rows<100000:
+            tmp.vec.reserve(self.mat.offsets[self.mat.num_rows])
+        else:
+            tmp.vec.reserve(100000)
+        marginals_l=self.left_marginals()
+        for k from 0<=k<self.mat.num_rows:
+            marg_l=marginals_l[k]
+            off1=self.mat.offsets[k]
+            off2=self.mat.offsets[k+1]
+            for i from off1<=i<off2:
+               v=self.mat.values[i]
+               if v>0:
+                   tmp.add_count(k,self.mat.rightColumns[i],v/marg_l)
+        return tmp.to_csr()
+    def thresholds_norm(self, perc):
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] means
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] squared_means
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] stddev
+        cdef double zscore=inverse_erf(2.0*perc-1.0)
+        cdef int count_targets
+        cdef int count_all=self.get_maxcol()+1
+        cdef double corr_factor = count_all / (count_all - 1.0)
+        count_targets=len(self)
+        means=self.right_marginals()
+        means /= count_targets
+        squared_means = self.right_squared_marginals()
+        squared_means /= count_targets
+        stddev=numpy.sqrt(corr_factor * (squared_means - means*means))
+        return means + zscore * stddev
+    def thresholds_quantile(self, perc):
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] results
+        cdef int i, count_nz, offset, abs_offset
+        cdef int count_targets
+        cdef int count_all=self.get_maxcol()+1
+        cdef CSRMatrixD nonzeros=self.transpose()
+        count_targets=len(self)
+        count_features=len(nonzeros)
+        results=numpy.zeros(count_features,numpy.{{t_np}})
+        abs_offset=count_features*(1.0-perc)+0.5
+        if abs_offset==0:
+            abs_offset=1
+        for i from 0<=i<count_features:
+            nz_vals=[v for k,v in nonzeros[i]]
+            nz_vals.sort()
+            count_nz=len(nz_vals)
+            offset=count_nz-abs_offset
+            if offset<0:
+                offset=0
+            results[i] = nz_vals[offset]
+        return results
+    def thresholds_nonzero(self, perc):
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] results
+        cdef int i
+        cdef int count_all=self.get_maxcol()+1
+        cdef CSRMatrixD nonzeros=self.transpose()
+        results=numpy.zeros(count_all,numpy.{{t_np}})
+        for i from 0<=i<count_all:
+            nz_vals=[v for k,v in nonzeros[i]]
+            nz_vals.sort()
+            results[i] = nz_vals[int(len(nz_vals)*perc)]
+        return results
+    def get_quantiles(self, qs):
+        cdef coordinate_t k, nnz
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] allvals
+        nnz = self.mat.offsets[self.mat.num_rows]
+        allvals = numpy.empty(self.mat.offsets[self.mat.num_rows],
+                              numpy.{{t_np}})
+        for k from 0<=k<self.mat.offsets[self.mat.num_rows]:
+            allvals[k] = self.mat.values[k]
+        allvals.sort()
+        result = []
+        for q in qs:
+            k = nnz*q
+            if k >= nnz:
+                k = nnz-1
+            result.append(allvals[k])
+        return result
+    cpdef CSRMatrix{{T}} apply_threshold(self, numpy.ndarray thr):
+        cdef VecD2 tmp=VecD2()
+        cdef coordinate_t k, i, k2
+        cdef int off1, off2
+        cdef double v, marg_l
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] thresholds=thr
+        if self.mat.num_rows<100000:
+            tmp.vec.reserve(self.mat.offsets[self.mat.num_rows])
+        else:
+            tmp.vec.reserve(100000)
+        for k from 0<=k<self.mat.num_rows:
+            off1=self.mat.offsets[k]
+            off2=self.mat.offsets[k+1]
+            for i from off1<=i<off2:
+               v=self.mat.values[i]
+               k2=self.mat.rightColumns[i]
+               if v>=thresholds[k2]:
+                   tmp.add_count(k,k2,1.0)
+        return tmp.to_csr()
+    cpdef CSRMatrixD apply_scaling(self, numpy.ndarray thr):
+        cdef VecD2 tmp=VecD2()
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] thresholds=thr
+        cdef coordinate_t k, i, k2
+        cdef int off1, off2
+        cdef double v, marg_l
+        if self.mat.num_rows<100000:
+            tmp.vec.reserve(self.mat.offsets[self.mat.num_rows])
+        else:
+            tmp.vec.reserve(100000)
+        for k from 0<=k<self.mat.num_rows:
+            off1=self.mat.offsets[k]
+            off2=self.mat.offsets[k+1]
+            for i from off1<=i<off2:
+               k2=self.mat.rightColumns[i]
+               v=self.mat.values[i]/thresholds[k2]
+               if v>=1.0:
+                   tmp.add_count(k,k2,1.0)
+               else:
+                   tmp.add_count(k,k2,v)
+        return tmp.to_csr()
+    def scale_columns(self, factors):
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] factors_l = factors
+        cdef coordinate_t k
+        cdef int off1, off2
+        for k from 0<=k<self.mat.num_rows:
+            off1 = self.mat.offsets[k]
+            off2 = self.mat.offsets[k+1]
+            for i from off1<=i<off2:
+                k2 = self.mat.rightColumns[i]
+                self.mat.values[i] *= factors_l[k2]
+    def scale_rows(self, factors):
+        cdef coordinate_t k
+        cdef {{tt}} factor
+        cdef int off1, off2
+        for k from 0<=k<self.mat.num_rows:
+            off1 = self.mat.offsets[k]
+            off2 = self.mat.offsets[k+1]
+            factor = factors[k]
+            for i from off1<=i<off2:
+                self.mat.values[i] *= factor
+    def left_marginals(self):
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] marginals_l
+        marginals_l=numpy.zeros(self.mat.num_rows,numpy.{{t_np}})
+        self.mat.compute_left_marginals(<{{tt}} *> marginals_l.data)
+        return marginals_l
+    def right_marginals(self):
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] marginals_r
+        marginals_r=numpy.zeros(self.get_maxcol()+1,numpy.{{t_np}})
+        self.mat.compute_right_marginals(<{{tt}} *> marginals_r.data)
+        return marginals_r
+    def right_squared_marginals(self):
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] marginals_r
+        marginals_r=numpy.zeros(self.get_maxcol()+1,numpy.{{t_np}})
+        self.mat.compute_right_squared_marginals(<{{tt}} *> marginals_r.data)
+        return marginals_r
+    cpdef {{tt}} get_count(self,coordinate_t k, coordinate_t k2):
+        if k<0 or k>=self.mat.num_rows:
+            return 0
+        assert k<self.mat.num_rows
+        cdef int lo=self.mat.offsets[k]
+        cdef int hi=self.mat.offsets[k+1]
+        cdef int mi
+        cdef coordinate_t a_mi
+        if hi==lo: return 0
+        while hi-lo>1:
+            mi=(hi+lo)//2
+            a_mi=self.mat.rightColumns[mi]
+            if a_mi>k2:
+                hi=mi
+            elif a_mi==k2:
+                return self.mat.values[mi]
+            else:
+                lo=mi+1
+        if self.mat.rightColumns[lo]==k2:
+            return self.mat.values[lo]
+        return 0
+    def write_binary(self,f):
+        """writes the matrix in binary format"""
+        cdef int fileno=f.fileno()
+        self.mat.write_binary(fileno)
+    def transpose(self):
+        cdef c_CSRMatrix{{T}} *matC=self.mat.transpose()
+        cdef CSRMatrix{{T}} mat=CSRMatrix{{T}}()
+        mat.set_matrix(matC)
+        return mat
+    def __add__(self,other):
+        cdef CSRMatrix{{T}} mat1
+        cdef CSRMatrix{{T}} mat2
+        cdef c_CSRMatrix{{T}} *matC
+        mat1=self
+        mat2=other
+        matC=add_csr{{T}}(mat1.mat,mat2.mat)
+        cdef CSRMatrix{{T}} mat=CSRMatrix{{T}}()
+        mat.set_matrix(matC)
+        return mat
+    def __dealloc__(self):
+        if self.mat!=NULL:
+            if self.buf is not None:
+                self.buf=None
+            else:
+                cxx_deleteA(self.mat.offsets)
+                if (self.mat.rightColumns!=NULL):
+                    cxx_deleteA(self.mat.rightColumns)
+                    cxx_deleteA(self.mat.values)
+            cxx_delete(self.mat)
+    def __reduce__(self):
+        # choose compatibility over performance.
+        cdef Vec{{T}}2 tmp=Vec{{T}}2()
+        tmp.vec.reserve(self.mat.offsets[self.mat.num_rows])
+        tmp.extend(self.item_iter())
+        return (CSRMatrix{{T}},(),tmp)
+    def __setstate__(self,Vec{{T}}2 tmp):
+        tmp.ensure_compact()
+        self.set_matrix(vec2csr{{T}}(&tmp.vec))
+
+cdef class CSRMatrix{{T}}_item_iter:
+    cdef CSRMatrix{{T}} mat
+    cdef c_CSRMatrix{{T}} *matC
+    cdef coordinate_t k
+    cdef int off
+    def __init__(self, mat):
+        self.mat=mat
+        self.matC=self.mat.mat
+        self.k=0
+        self.off=0
+    def __iter__(self):
+        return self
+    def __next__(self):
+        while self.off==self.matC.offsets[self.k+1]:
+            self.k+=1
+            if self.k>=self.matC.num_rows:
+                raise StopIteration
+        res=(self.k,
+             self.matC.rightColumns[self.off],
+             self.matC.values[self.off])
+        self.off+=1
+        return res
+{%- endif %}
+{% endfor %}
+
+def csrFromBuffer(object buf):
+    """takes an object conforming to the Buffer protocol and
+    creates a CSR matrix from that."""
+    cdef const_char_ptr buffer
+    cdef Py_ssize_t buffer_len
+    PyObject_AsCharBuffer(buf,&buffer,&buffer_len)
+    cdef int *tmp=<int *>buffer
+    cdef c_CSRMatrixI *c_matI
+    cdef CSRMatrixI matI
+    cdef c_CSRMatrixF *c_matF
+    cdef CSRMatrixF matF
+    cdef c_CSRMatrixD *c_matD
+    cdef CSRMatrixD matD
+    if tmp[1]&0xff==c'I':
+        c_matI=new_CSRMatrixI()
+        result=csrFromBufferI(<void *>buffer,c_matI)
+        if result==-1:
+            raise ValueError
+        matI=CSRMatrixI()
+        matI.set_matrix(c_matI)
+        matI.buf=buf
+        return matI
+    elif tmp[1]&0xff==c'F' and (tmp[1]>>24)==c'4':
+        c_matF=new_CSRMatrixF()
+        result=csrFromBufferF(<void *>buffer,c_matF)
+        if result==-1:
+            raise ValueError
+        matF=CSRMatrixF()
+        matF.set_matrix(c_matF)
+        matF.buf=buf
+        return matF
+    elif tmp[1]&0xff==c'F' and (tmp[1]>>24)==c'8':
+        c_matD=new_CSRMatrixD()
+        result=csrFromBufferD(<void *>buffer,c_matD)
+        if result==-1:
+            raise ValueError
+        matD=CSRMatrixD()
+        matD.set_matrix(c_matD)
+        matD.buf=buf
+        return matD
+    else:
+        # hrm... this only works on 32bit machines
+        # what's the Python equivalent of sizeof(int)???
+        tcode=PyString_FromStringAndSize(buffer+4,4)
+        raise ValueError("wrong tcode "+tcode)
+
+def mmapCSR(f):
+    ## py2.4 compat: determine length
+    ## instead of passing length=0
+    # go to end of file and note position
+    f.seek(0,2)
+    flen=f.tell()
+    a=mmap.mmap(f.fileno(),flen,access=mmap.ACCESS_READ)
+    return csrFromBuffer(a)
+
+{% for t in wanted_types -%}
+{%- set T,tt,t_np = t %}## {{T}} -> {{tt}}
+{% for N in range(1,4) %}
+{% macro vars(prefix) -%}
+{{prefix}}0
+{%- for i in range(1,N) -%},{{prefix}}{{i}}
+{%- endfor -%}
+{%- endmacro %}
+cdef class IVec{{T}}{{N}}_iter
+
+cdef class Vec{{T}}{{N}}:
+    """mutable sparse int matrix based on item vector"""
+    def __init__(self):
+        self.is_compact=True
+    def item_iter(self):
+        self.ensure_compact()
+        return IVec{{T}}{{N}}_iter(self)
+    def get_size(self,compactify=True):
+        if compactify:
+            self.ensure_compact()
+        return self.vec.size()
+    def __len__(self):
+        return self.get_size(True)
+    def clear(self):
+        self.vec.resize(0)
+        self.is_compact=True
+    cdef void compactify(self):
+        cdef c_SmallerAddr{{T}}{{N}} comp
+        c_IVec{{T}}{{N}}_sort(self.vec.begin(),self.vec.end(),comp)
+        c_compactify{{T}}{{N}}(&self.vec)
+        self.is_compact=True
+    cdef void ensure_compact(self):
+        if not self.is_compact:
+            self.compactify()
+{%- if T=='V' %}
+    cpdef bint get_count(self,{{vars('coordinate_t k')}}):
+        cdef c_CItem{{T}}{{N}} ci
+{%- for i in range(N) %}
+        ci.addr[{{i}}]=k{{i}}
+{%- endfor %}
+        return c_get_count{{T}}{{N}}(&self.vec,ci)
+    cdef void c_add(self, {{vars('coordinate_t k')}}):
+{%- else %}
+    cpdef {{tt}} get_count(self,{{vars('coordinate_t k')}}):
+        cdef c_CItem{{T}}{{N}} ci
+{%- for i in range(N) %}
+        ci.addr[{{i}}]=k{{i}}
+{%- endfor %}
+        return c_get_count{{T}}{{N}}(&self.vec,ci)
+    cdef void c_add(self, {{vars('coordinate_t k')}}, {{tt}} item):
+{%- endif %}
+        cdef c_CItem{{T}}{{N}} c
+{%- for i in range(N) %}
+        c.addr[{{i}}]=k{{i}}
+{%- endfor %}
+{%- if T!='V' %}
+        c.item=item
+{%- endif %}
+        self.vec.push_back(c)
+        self.is_compact=False
+{%- if T=='V' %}
+    def add_count(self, {{vars('coordinate_t k')}}):
+        self.c_add({{vars('k')}})
+{%- else %}
+    def add_count(self, {{vars('coordinate_t k')}}, item=1):
+        self.c_add({{vars('k')}}, item)
+{%- endif %}
+    def __add__(Vec{{T}}{{N}} self, Vec{{T}}{{N}} other):
+        cdef c_CItem{{T}}{{N}} c1, c2
+        cdef unsigned int i1, i2
+        cdef int k, delta
+        cdef Vec{{T}}{{N}} result
+        self.ensure_compact()
+        other.ensure_compact()
+        result=Vec{{T}}{{N}}()
+        result.vec.reserve(max(self.vec.size(),other.vec.size()))
+        i1=0
+        i2=0
+        while i1<self.vec.size() and i2<other.vec.size():
+            c1=self.vec.at(i1)
+            c2=other.vec.at(i2)
+            delta=0
+            for k from 0<=k<{{N}}:
+                if c1.addr[k]<c2.addr[k]:
+                    delta=-1
+                    break
+                elif c1.addr[k]>c2.addr[k]:
+                    delta=1
+                    break
+            if delta==0:
+{%- if T!='V' %}
+                c1.item+=c2.item
+{%- endif %}
+                result.vec.push_back(c1)
+                i1+=1
+                i2+=1
+            elif delta==-1:
+                result.vec.push_back(c1)
+                i1+=1
+            else:
+                result.vec.push_back(c2)
+                i2+=1
+        while i1<self.vec.size():
+            c1=self.vec.at(i1)
+            result.vec.push_back(c1)
+            i1+=1
+        while i2<other.vec.size():
+            c2=other.vec.at(i2)
+            result.vec.push_back(c2)
+            i2+=1
+        return result
+{% if N==1 and T=='V' %}
+    def to_array(self):
+        cdef coordinate_t n, i
+        cdef numpy.ndarray[numpy.int32_t, ndim=1] result
+        self.ensure_compact()
+        n=self.vec.size()
+        result=numpy.zeros(n, numpy.int32)
+        for i from 0<=i<n:
+            result[i]=self.vec.at(i).addr[0]
+        return result
+{% elif N==1 and T!='V' %}
+    cpdef SparseVector{{T}} to_sparse(self):
+        cdef c_CItem{{T}}{{N}} c
+        cdef SparseVector{{T}} result
+        cdef coordinate_t n,i
+        cdef coordinate_t *idx_ptr
+        cdef {{tt}} *vals_ptr
+        self.ensure_compact()
+        n=self.vec.size()
+        idx_ptr=<coordinate_t *>PyMem_Malloc(n*sizeof(coordinate_t))
+        vals_ptr=<{{tt}} *>PyMem_Malloc(n*sizeof({{tt}}))
+        for i from 0<=i<n:
+          c=self.vec.at(i)
+          idx_ptr[i]=c.addr[0]
+          vals_ptr[i]=c.item
+        result=SparseVector{{T}}(None)
+        result.idx_ptr=idx_ptr
+        result.vals_ptr=vals_ptr
+        result.my_len=n
+        return result
+{% elif N==2 and T!='V'%}
+    cpdef CSRMatrix{{T}} to_csr(self):
+        self.ensure_compact()
+        cdef c_CSRMatrix{{T}} *matC=vec2csr{{T}}(&self.vec)
+        cdef CSRMatrix{{T}} mat=CSRMatrix{{T}}()
+        mat.set_matrix(matC)
+        return mat
+{% endif %}
+    def tofile(self, f):
+        cdef long i, n, k, k_max
+        n=self.get_size()
+        f.write('{{T}}{{N}} %d\n'%(n,))
+        k=0
+        for i from 0<=i<n/CHUNK_SIZE:
+            s=PyString_FromStringAndSize(<char *>c_Vec{{T}}{{N}}_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItem{{T}}{{N}}))
+            f.write(s)
+            k+=CHUNK_SIZE
+        if k<n:
+            s=PyString_FromStringAndSize(<char *>c_Vec{{T}}{{N}}_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItem{{T}}{{N}}))
+            f.write(s)
+    def fromfile(self, f):
+        cdef long i, n
+        line=f.readline().strip().split()
+        assert line[0]=='{{T}}{{N}}'
+        n=long(line[1])
+        self.clear()
+        self.vec.resize(n)
+        k=0
+        for i from 0<=i<n/CHUNK_SIZE:
+            s=f.read(CHUNK_SIZE*sizeof(c_CItem{{T}}{{N}}))
+            assert len(s)==CHUNK_SIZE*sizeof(c_CItem{{T}}{{N}})
+            memcpy(<void *>c_Vec{{T}}{{N}}_get_pointer(&self.vec,k), <char *>s, CHUNK_SIZE*sizeof(c_CItem{{T}}{{N}}))
+            k+=CHUNK_SIZE
+        if k<n:
+            s=f.read((n-k)*sizeof(c_CItem{{T}}{{N}}))
+            assert len(s)==(n-k)*sizeof(c_CItem{{T}}{{N}})
+            memcpy(<void *>c_Vec{{T}}{{N}}_get_pointer(&self.vec,k), <char *>s, (n-k)*sizeof(c_CItem{{T}}{{N}}))
+    cpdef int get_maxcol(self, int k=0):
+        cdef int i, n, new_val, col
+        assert k>=0 and k<{{N}}
+        n=self.vec.size()
+        if n==0:
+            return -1
+        if k==0:
+            return self.vec.at(n-1).addr[0]
+        col=-1
+        n=self.vec.size()
+        for i from 0<=i<n:
+            new_val=self.vec.at(i).addr[k]
+            if new_val>col:
+                col=new_val
+        return col
+    cpdef numpy.ndarray get_type_counts(self, int k=0):
+        cdef int old_val, new_val, i, n, count
+        cdef numpy.ndarray[numpy.int32_t, ndim=1] result
+        assert k>=0 and k<{{N}}
+        if self.vec.size()==0:
+            return numpy.zeros(0, numpy.int32)
+        self.ensure_compact()
+        n_types=self.get_maxcol(k)+1
+        result=numpy.zeros(n_types,numpy.int32)
+        n=self.vec.size()
+        for i from 0<=i<n:
+            new_val=self.vec.at(i).addr[k]
+            result[new_val]+=1
+        return result
+    cpdef Vec{{T}}{{N}} remap(self, int k, numpy.ndarray filt):
+        cdef numpy.ndarray[numpy.int8_t, ndim=1] wanted=filt.astype('b')
+        cdef numpy.ndarray[numpy.int_t, ndim=1] target=filt.cumsum()-1
+        self.ensure_compact()
+        cdef int n=self.vec.size()
+        cdef int i
+        cdef Vec{{T}}{{N}} result=Vec{{T}}{{N}}()
+        cdef c_CItem{{T}}{{N}} c
+        for i from 0<=i<n:
+            c=self.vec.at(i)
+            if wanted[c.addr[k]]:
+                c.addr[k]=target[c.addr[k]]
+                result.vec.push_back(c)
+        return result
+{%- if T=='V' %}
+{%-  if N==1 %}
+    def append(self,k):
+        self.c_add(k)
+    def extend(self,tups):
+        for k in tups:
+            self.c_add(k)
+{%-  else %}
+    def append(self,tup):
+        {{vars('k')}}=tup
+        self.c_add({{vars('k')}})
+    def extend(self,tups):
+        for {{vars('k')}} in tups:
+            self.c_add({{vars('k')}})
+{%-  endif %}
+{%- else %}
+    def append(self,tup):
+        {{vars('k')}},val=tup
+        self.c_add({{vars('k')}},val)
+    def extend(self,tups):
+        for {{vars('k')}},val in tups:
+            self.c_add({{vars('k')}},val)
+{%- endif %}
+    def __iter__(self):
+        return self.item_iter()
+    def __reduce__(self):
+        return (Vec{{T}}{{N}},(),(),self.item_iter())
+    def __setstate__(self,state):
+        pass
+    def __repr__(self):
+        return 'Vec{{T}}{{N}}(%s)'%(str(list(self)),)
+    def __dealloc__(self):
+        # need to call destructor explicitly
+        self.vec.cxx_destructor()
+
+cdef class IVec{{T}}{{N}}_iter:
+    cdef Vec{{T}}{{N}} vec
+    cdef c_Vec{{T}}{{N}} *vecC
+    cdef unsigned int k
+    def __init__(self,vec):
+        self.vec=vec
+        self.vecC=&self.vec.vec
+        self.k=0
+    def __iter__(self):
+        return self
+    def __next__(self):
+        if self.k>=self.vecC.size():
+            raise StopIteration
+        cdef c_CItem{{T}}{{N}} res=self.vecC.at(self.k)
+        self.k+=1
+{%- if T=='V' and N==1 %}
+        return res.addr[0]
+{%- else %}
+        return (res.addr[0]
+{%- for i in range(1,N) -%},
+                res.addr[{{i}}]
+{%- endfor -%}{%- if T!='V' %},
+                res.item
+{%- endif -%})
+{%- endif %}
+
+cdef class LargeVec{{T}}{{N}}:
+    cdef public object compact
+    cdef public Vec{{T}}{{N}} loose
+    def __init__(self):
+        self.compact=[]
+        self.loose=Vec{{T}}{{N}}()
+        self.loose.vec.reserve(100000)
+    def ensure_compact(self):
+        if self.loose.get_size()>0:
+            self.compact.append(self.loose)
+        self.loose=Vec{{T}}{{N}}()
+        while len(self.compact)>=2:
+            self.compact[-2:]=[self.compact[-2]+self.compact[-1]]
+    def add_count(self, {{vars('coordinate_t k')}}{%- if T!='V' -%}, item=1{%- endif -%}):
+        self.loose.c_add({{vars('k')}}{%- if T!='V' -%}, item{%- endif -%})
+        if self.loose.get_size(False)>=100000:
+            self.loose.ensure_compact()
+            self.compact.append(self.loose)
+            self.loose=Vec{{T}}{{N}}()
+            self.loose.vec.reserve(100000)
+            while (len(self.compact)>=2 and
+                   self.compact[-1].get_size()>=0.6*self.compact[-2].get_size()):
+                self.compact[-2:]=[self.compact[-2]+self.compact[-1]]
+    def get_compact(self):
+        self.ensure_compact()
+        if len(self.compact)>0:
+            return self.compact[0]
+        else:
+            return Vec{{T}}{{N}}()
+    def get_size(self, compactify=True):
+        cdef int n
+        if compactify:
+            self.ensure_compact()
+            if self.compact:
+                return self.compact[0].get_size()
+            else:
+                return 0
+        else:
+            n=sum([c.get_size(False) for c in self.compact])
+            n+=self.loose.get_size(False)
+            return n
+    def __iter__(self):
+        self.ensure_compact()
+        try:
+            return iter(self.compact[0])
+        except IndexError:
+            return iter([])
+{% if N==2 and T!='V'%}
+    cpdef CSRMatrix{{T}} to_csr(self):
+        self.ensure_compact()
+        return self.compact[0].to_csr()
+{% endif %}
+    def get_type_counts(self, k=0):
+        return self.get_compact().get_type_counts(k)
+    def remap(self, k, filt):
+        return self.get_compact().remap(k,filt)
+{% endfor %}
+
+{%- if T!='V' %}
+cdef class SparseVector{{T}}:
+    def __init__(self, pairs=None):
+        cdef coordinate_t i
+        if pairs is not None:
+            self.my_len=len(pairs)
+            self.idx_ptr=<coordinate_t *>PyMem_Malloc(self.my_len*sizeof(coordinate_t))
+            self.vals_ptr=<{{tt}} *>PyMem_Malloc(self.my_len*sizeof({{tt}}))
+            for i from 0<=i<self.my_len:
+                x,y=pairs[i]
+                self.idx_ptr[i]=x
+                self.vals_ptr[i]=y
+        else:
+            self.my_len=0
+            self.idx_ptr=NULL
+            self.vals_ptr=NULL
+    cpdef int from_dense(self, {{tt}}[:] dense):
+        cdef int i, k
+        assert self.my_len == 0
+        k = 0
+        for i from 0<=i<dense.shape[0]:
+            if dense[i]!=0.0:
+                k += 1
+        self.my_len = k
+        self.idx_ptr=<coordinate_t *>PyMem_Malloc(self.my_len*sizeof(coordinate_t))
+        self.vals_ptr=<{{tt}} *>PyMem_Malloc(self.my_len*sizeof({{tt}}))
+        k = 0
+        for i from 0<=i<dense.shape[0]:
+            if dense[i] != 0.0:
+                self.idx_ptr[k] = i
+                self.vals_ptr[k] = dense[i]
+                k += 1
+        return k
+    cpdef {{tt}} dotSelf(self):
+        cdef {{tt}} s=0
+        cdef coordinate_t i
+        for i from 0<=i<self.my_len:
+            s+=self.vals_ptr[i]*self.vals_ptr[i]
+        return s
+    cdef {{tt}} _dotFull(self, const_{{tt}}_ptr full_ptr):
+        cdef {{tt}} s=0
+        cdef coordinate_t i
+        for i from 0<=i<self.my_len:
+            s+=self.vals_ptr[i]*full_ptr[self.idx_ptr[i]]
+        return s
+    cdef {{tt}} _dotFull_partial(self, const_{{tt}}_ptr full_ptr, int my_len):
+        cdef {{tt}} s=0
+        cdef coordinate_t i
+        for i from 0<=i<my_len:
+            s+=self.vals_ptr[i]*full_ptr[self.idx_ptr[i]]
+        return s
+    cpdef double jaccard(self, SparseVector{{T}} other):
+        cdef double s_max=0
+        cdef double s_min=0
+        cdef {{tt}} val1, val2
+        cdef coordinate_t i,j, idx_i, idx_j
+        i=0
+        j=0
+        while i<self.my_len and j<other.my_len:
+            idx_i=self.idx_ptr[i]
+            idx_j=other.idx_ptr[j]
+            if idx_i<idx_j:
+                s_max+=self.vals_ptr[i]
+                i+=1
+            elif idx_i>idx_j:
+                s_max+=other.vals_ptr[j]
+                j+=1
+            else:
+                val1=self.vals_ptr[i]
+                val2=other.vals_ptr[j]
+                if val1>val2:
+                    s_max+=val1
+                    s_min+=val2
+                else:
+                    s_max+=val2
+                    s_min+=val1
+                i+=1
+                j+=1
+        if i<self.my_len:
+            while i<self.my_len:
+                s_max+=self.vals_ptr[i]
+                i+=1
+        else:
+            while j<other.my_len:
+                s_max+=other.vals_ptr[j]
+                j+=1
+        if s_max==0:
+            return 0.0
+        else:
+            return s_min/s_max
+    cpdef {{tt}} dotSparse(self, SparseVector{{T}} other):
+        cdef {{tt}} product=0
+        cdef {{tt}} val1, val2
+        cdef coordinate_t i, j, idx_i, idx_j
+        i=0
+        j=0
+        while i<self.my_len and j<other.my_len:
+           idx_i=self.idx_ptr[i]
+           idx_j=other.idx_ptr[j]
+           if idx_i<idx_j:
+              i+=1
+           elif idx_i>idx_j:
+              j+=1
+           else:
+              val1=self.vals_ptr[i]
+              val2=other.vals_ptr[j]
+              product+=val1*val2
+              i+=1
+              j+=1
+        return product
+    def count_intersection(self, SparseVector{{T}} other):
+        cdef coordinate_t i, j, idx_i, idx_j
+        cdef int n_ab=0
+        i=0
+        j=0
+        while i<self.my_len and j<other.my_len:
+           idx_i=self.idx_ptr[i]
+           idx_j=other.idx_ptr[j]
+           if idx_i<idx_j:
+              i+=1
+           elif idx_i>idx_j:
+              j+=1
+           else:
+              i+=1
+              j+=1
+              n_ab+=1
+        return n_ab
+    cpdef double min_sum(self, SparseVector{{T}} other):
+        cdef double product=0.0
+        cdef {{tt}} val1, val2
+        cdef coordinate_t i, j, idx_i, idx_j
+        i=0
+        j=0
+        while i<self.my_len and j<other.my_len:
+           idx_i=self.idx_ptr[i]
+           idx_j=other.idx_ptr[j]
+           if idx_i<idx_j:
+              i+=1
+           elif idx_i>idx_j:
+              j+=1
+           else:
+              val1=self.vals_ptr[i]
+              val2=other.vals_ptr[j]
+              if val1<val2:
+                  product+=val1
+              else:
+                  product+=val2
+              i+=1
+              j+=1
+        return product
+    cpdef double cosine(self, SparseVector{{T}} other):
+        cdef double sqsum_self=0.0
+        cdef double sqsum_other=0.0
+        cdef double product=0.0
+        cdef {{tt}} val1, val2
+        cdef coordinate_t i, j, idx_i, idx_j
+        i=0
+        j=0
+        while i<self.my_len and j<other.my_len:
+           idx_i=self.idx_ptr[i]
+           idx_j=other.idx_ptr[j]
+           if idx_i<idx_j:
+              val1=self.vals_ptr[i]
+              sqsum_self+=val1*val1
+              i+=1
+           elif idx_i>idx_j:
+              val2=other.vals_ptr[j]
+              sqsum_other+=val2*val2
+              j+=1
+           else:
+              val1=self.vals_ptr[i]
+              val2=other.vals_ptr[j]
+              sqsum_self+=val1*val1
+              sqsum_other+=val2*val2
+              product+=val1*val2
+              i+=1
+              j+=1
+        if i<self.my_len:
+            while i<self.my_len:
+                val1=self.vals_ptr[i]
+                sqsum_self+=val1*val1
+                i+=1
+        else:
+            while j<other.my_len:
+                val2=other.vals_ptr[j]
+                sqsum_other+=val2*val2
+                j+=1
+        return product/sqrt(sqsum_self*sqsum_other)
+    cpdef double jsd_unnorm(self, SparseVector{{T}} other):
+        cdef double sum=0.0
+        cdef double val1, val2, avg
+        cdef coordinate_t i, j, idx_i, idx_j
+        i=0
+        j=0
+        while i<self.my_len and j<other.my_len:
+           idx_i=self.idx_ptr[i]
+           idx_j=other.idx_ptr[j]
+           if idx_i<idx_j:
+               val1=self.vals_ptr[i]
+               sum+=val1*M_LN2
+               i+=1
+           elif idx_i>idx_j:
+               val2=other.vals_ptr[j]
+               sum+=val2*M_LN2
+               j+=1
+           else:
+               val1=self.vals_ptr[i]
+               val2=other.vals_ptr[j]
+               i+=1
+               j+=1
+               avg=(val1+val2)/2.0
+               sum+=val1*log(val1/avg)+val2*log(val2/avg)
+        while i<self.my_len:
+           val1=self.vals_ptr[i]
+           i+=1
+           sum+=val1*M_LN2
+        while j<other.my_len:
+           val2=other.vals_ptr[j]
+           j+=1
+           sum+=val2*M_LN2
+        return sum/(2.0*M_LN2)
+    cpdef double skew_unnorm(self, SparseVector{{T}} other, double alpha):
+        cdef double sum=0.0
+        cdef double beta=1.0-alpha
+        cdef double val1, val2, avg
+        cdef coordinate_t i, j, idx_i, idx_j
+        cdef double log_invbeta=log(1.0/beta)
+        i=0
+        j=0
+        while i<self.my_len and j<other.my_len:
+           idx_i=self.idx_ptr[i]
+           idx_j=self.idx_ptr[j]
+           if idx_i<idx_j:
+               val1=self.vals_ptr[i]
+               sum+=val1*log_invbeta
+               i+=1
+           elif idx_i>idx_j:
+               j+=1
+           else:
+               val1=self.vals_ptr[i]
+               val2=other.vals_ptr[j]
+               avg=alpha*val2+beta*val1
+               sum+=log(val1/avg)
+               i+=1
+               j+=1
+        return sum
+    cpdef double norm_l1(self):
+        cdef double sum=0.0
+        cdef unsigned int i
+        for i from 0<=i<self.my_len:
+            sum+=fabs(self.vals_ptr[i])
+        return sum
+    cpdef double norm_l2(self):
+        cdef double sum=0.0
+        cdef double val
+        cdef unsigned int i
+        for i from 0<=i<self.my_len:
+            val=self.vals_ptr[i];
+            sum+=val*val
+        return sqrt(sum)
+    cpdef double norm_lp(self, double p):
+        cdef double sum=0.0
+        cdef int i
+        for i from 0<=i<self.my_len:
+            sum+=pow(fabs(self.vals_ptr[i]),p)
+        return pow(sum,1.0/p)
+    def dotFull(self, numpy.ndarray[{{tt}},ndim=1] full):
+        cdef {{tt}} *full_ptr
+        cdef unsigned int my_len=self.my_len
+        cdef unsigned int full_len=len(full)
+        # treat nonpresent values as 0
+        while my_len>0 and self.idx_ptr[my_len-1]>full_len:
+            my_len-=1
+        full_ptr=<{{tt}}*>full.data
+        return self._dotFull_partial(full_ptr,my_len)
+    def dotFull_check(self, numpy.ndarray[{{tt}},ndim=1] full):
+        cdef {{tt}} *full_ptr
+        cdef int my_len=self.my_len
+        cdef int full_len=len(full)
+        # boundary check
+        full[self.idx_ptr[self.my_len-1]]
+        full_ptr=<{{tt}}*>full.data
+        return self._dotFull(full_ptr)
+    def dotMatrix(self, numpy.ndarray[{{tt}},ndim=2] full):
+        cdef numpy.ndarray[{{tt}},ndim=1] result
+        result = numpy.zeros(full.shape[1], numpy.{{t_np}})
+        for i from 0<=i<self.my_len:
+            result += full[self.idx_ptr[i]] * self.vals_ptr[i]
+        return result
+    cdef void _axpy(self, {{tt}} *x_ptr, {{tt}} a):
+        for i from 0<=i<self.my_len:
+            x_ptr[self.idx_ptr[i]]+=a*self.vals_ptr[i]
+    def axpy(self, numpy.ndarray[{{tt}},ndim=1] x, {{tt}} a=1):
+        # boundary check
+        x[self.idx_ptr[self.my_len-1]]
+        self._axpy(<{{tt}} *>x.data,a)
+    cpdef {{tt}} sqdist(self, SparseVector{{T}} other):
+        """computes ||x-y||^2"""
+        cdef {{tt}} s=0
+        cdef {{tt}} val
+        cdef int i1=0,i2=0
+        while i1<self.my_len and i2<other.my_len:
+            if self.idx_ptr[i1]<other.idx_ptr[i2]:
+                val=self.vals_ptr[i1]
+                s+=val*val
+                i1+=1
+            elif self.idx_ptr[i1]>other.idx_ptr[i2]:
+                val=other.vals_ptr[i2]
+                s+=val*val
+                i2+=1
+            else:
+                val=self.vals_ptr[i1]-other.vals_ptr[i2]
+                s+=val*val
+                i1+=1
+                i2+=1
+        while i1<self.my_len:
+            val=self.vals_ptr[i1]
+            s+=val*val
+            i1+=1
+        while i2<other.my_len:
+            val=other.vals_ptr[i2]
+            s+=val*val
+            i2+=1
+        return s
+    def write_pairs(self, f, delim=':'):
+        cdef int i
+        w_func=f.write
+        for i from 0<=i<self.my_len:
+            # svmlight does not want 0 as index
+            w_func(' %d%s%s'%(self.idx_ptr[i]+1,delim,self.vals_ptr[i]))
+    def __imul__(self, {{tt}} a):
+        cdef coordinate_t i
+        for i from 0<=i<self.my_len:
+            self.vals_ptr[i] *= a
+        return self
+    def __idiv__(self, {{tt}} a):
+        cdef coordinate_t i
+        for i from 0<=i<self.my_len:
+            self.vals_ptr[i] /= a
+        return self
+    cpdef SparseVector{{T}} min_vals(self, SparseVector{{T}} other):
+        cdef SparseVector{{T}} result
+        cdef coordinate_t i1, i2, k, idx1, idx2
+        result=SparseVector{{T}}()
+        if self.my_len<other.my_len:
+            result.my_len=self.my_len
+        else:
+            result.my_len=other.my_len
+        result.idx_ptr=<coordinate_t *>PyMem_Malloc(result.my_len*sizeof(coordinate_t))
+        result.vals_ptr=<{{tt}} *>PyMem_Malloc(result.my_len*sizeof({{tt}}))
+        i1=i2=k=0
+        while i1<self.my_len and i2<other.my_len:
+           idx1=self.idx_ptr[i1]
+           idx2=other.idx_ptr[i2]
+           if idx1<idx2:
+               i1+=1
+           elif idx1>idx2:
+               i2+=1
+           else:
+               result.idx_ptr[k]=idx1
+               val1=self.vals_ptr[i1]
+               val2=other.vals_ptr[i2]
+               if val1<val2:
+                   result.vals_ptr[k]=val1
+               else:
+                   result.vals_ptr[k]=val2
+               i1+=1
+               i2+=1
+               k+=1
+        result.my_len=k
+        return result
+    def scale_array(SparseVector{{T}} self, numpy.ndarray[{{tt}}, ndim=1] a):
+        cdef SparseVector{{T}} result
+        cdef coordinate_t i
+        result=SparseVector{{T}}()
+        result.my_len=self.my_len
+        result.idx_ptr=<coordinate_t *>PyMem_Malloc(result.my_len*sizeof(coordinate_t))
+        result.vals_ptr=<{{tt}} *>PyMem_Malloc(result.my_len*sizeof({{tt}}))
+        for i from 0<=i<self.my_len:
+            result.idx_ptr[i]=self.idx_ptr[i]
+        for i from 0<=i<self.my_len:
+            result.vals_ptr[i]=self.vals_ptr[i]*a[self.idx_ptr[i]]
+        return result
+    def __div__(SparseVector{{T}} self, {{tt}} a):
+        cdef SparseVector{{T}} result
+        cdef coordinate_t i
+        result=SparseVector{{T}}()
+        result.my_len=self.my_len
+        result.idx_ptr=<coordinate_t *>PyMem_Malloc(result.my_len*sizeof(coordinate_t))
+        result.vals_ptr=<{{tt}} *>PyMem_Malloc(result.my_len*sizeof({{tt}}))
+        for i from 0<=i<self.my_len:
+            result.idx_ptr[i]=self.idx_ptr[i]
+        for i from 0<=i<self.my_len:
+            result.vals_ptr[i]=self.vals_ptr[i]/a
+        return result
+    def __len__(self):
+        return self.my_len
+    def __add__(SparseVector{{T}} self,SparseVector{{T}} other):
+        cdef coordinate_t *new_idx
+        cdef {{tt}} *new_vals
+        cdef coordinate_t i1,i2,i_all
+        cdef coordinate_t n1,n2,n_all
+        cdef coordinate_t k1,k2,k
+        cdef SparseVector{{T}} result
+        # first pass: determine how much space we need
+        n1=self.my_len
+        n2=other.my_len
+        n_all=i1=i2=0
+        while i1<n1 and i2<n2:
+            k1=self.idx_ptr[i1]
+            k2=other.idx_ptr[i2]
+            if k1>=k2: i2+=1
+            if k2>=k1: i1+=1
+            n_all+=1
+        if i1<n1: n_all+=n1-i1
+        if i2<n2: n_all+=n2-i2
+        new_idx=<coordinate_t *>PyMem_Malloc(n_all*sizeof(coordinate_t))
+        new_vals=<{{tt}} *>PyMem_Malloc(n_all*sizeof({{tt}}))
+        # second pass: fill in the actual values
+        i1=i2=i_all=0
+        while i1<n1 and i2<n2:
+            k1=self.idx_ptr[i1]
+            k2=other.idx_ptr[i2]
+            if k1>=k2:
+                new_idx[i_all]=k2
+                new_vals[i_all]=other.vals_ptr[i2]
+                i2+=1
+                if k1==k2:
+                    new_vals[i_all]+=self.vals_ptr[i1]
+                    i1+=1
+            elif k2>=k1:
+                new_idx[i_all]=k1
+                new_vals[i_all]=self.vals_ptr[i1]
+                i1+=1
+            i_all+=1
+        while i1<n1:
+            new_idx[i_all]=self.idx_ptr[i1]
+            new_vals[i_all]=self.vals_ptr[i1]
+            i1+=1
+            i_all+=1
+        else:
+            while i2<n2:
+                new_idx[i_all]=other.idx_ptr[i2]
+                new_vals[i_all]=other.vals_ptr[i2]
+                i2+=1
+                i_all+=1
+        assert i_all==n_all
+        result=SparseVector{{T}}()
+        result.my_len=n_all
+        result.idx_ptr=new_idx
+        result.vals_ptr=new_vals
+        return result
+    def __sub__(SparseVector{{T}} self,SparseVector{{T}} other):
+        cdef coordinate_t *new_idx
+        cdef {{tt}} *new_vals
+        cdef coordinate_t i1,i2,i_all
+        cdef coordinate_t n1,n2,n_all
+        cdef coordinate_t k1,k2,k
+        cdef SparseVector{{T}} result
+        # first pass: determine how much space we need
+        n1=self.my_len
+        n2=other.my_len
+        n_all=i1=i2=0
+        while i1<n1 and i2<n2:
+            k1=self.idx_ptr[i1]
+            k2=other.idx_ptr[i2]
+            if k1>=k2: i2+=1
+            if k2>=k1: i1+=1
+            n_all+=1
+        if i1<n1: n_all+=n1-i1
+        if i2<n2: n_all+=n2-i2
+        new_idx=<coordinate_t *>PyMem_Malloc(n_all*sizeof(coordinate_t))
+        new_vals=<{{tt}} *>PyMem_Malloc(n_all*sizeof({{tt}}))
+        # second pass: fill in the actual values
+        i1=i2=i_all=0
+        while i1<n1 and i2<n2:
+            k1=self.idx_ptr[i1]
+            k2=other.idx_ptr[i2]
+            if k1>=k2:
+                new_idx[i_all]=k2
+                new_vals[i_all]=-other.vals_ptr[i2]
+                i2+=1
+                if k1==k2:
+                    new_vals[i_all]+=self.vals_ptr[i1]
+                    i1+=1
+            elif k2>=k1:
+                new_idx[i_all]=k1
+                new_vals[i_all]=self.vals_ptr[i1]
+                i1+=1
+            i_all+=1
+        while i1<n1:
+            new_idx[i_all]=self.idx_ptr[i1]
+            new_vals[i_all]=self.vals_ptr[i1]
+            i1+=1
+            i_all+=1
+        else:
+            while i2<n2:
+                new_idx[i_all]=other.idx_ptr[i2]
+                new_vals[i_all]=-other.vals_ptr[i2]
+                i2+=1
+                i_all+=1
+        assert i_all==n_all
+        result=SparseVector{{T}}()
+        result.my_len=n_all
+        result.idx_ptr=new_idx
+        result.vals_ptr=new_vals
+        return result
+    def __or__(SparseVector{{T}} self,SparseVector{{T}} other):
+        cdef coordinate_t *new_idx
+        cdef {{tt}} *new_vals
+        cdef coordinate_t i1,i2,i_all
+        cdef coordinate_t n1,n2,n_all
+        cdef coordinate_t k1,k2,k
+        cdef SparseVector{{T}} result
+        cdef {{tt}} val
+        # first pass: determine how much space we need
+        n1=self.my_len
+        n2=other.my_len
+        n_all=i1=i2=0
+        while i1<n1 and i2<n2:
+            k1=self.idx_ptr[i1]
+            k2=other.idx_ptr[i2]
+            if k1>=k2: i2+=1
+            if k2>=k1: i1+=1
+            n_all+=1
+        if i1<n1: n_all+=n1-i1
+        if i2<n2: n_all+=n2-i2
+        new_idx=<coordinate_t *>PyMem_Malloc(n_all*sizeof(coordinate_t))
+        new_vals=<{{tt}} *>PyMem_Malloc(n_all*sizeof({{tt}}))
+        # second pass: fill in the actual values
+        i1=i2=i_all=0
+        while i1<n1 and i2<n2:
+            k1=self.idx_ptr[i1]
+            k2=other.idx_ptr[i2]
+            if k1>=k2:
+                new_idx[i_all]=k2
+                new_vals[i_all]=other.vals_ptr[i2]
+                i2+=1
+                if k1==k2:
+                    val=self.vals_ptr[i1]
+                    if new_vals[i_all]<val:
+                        new_vals[i_all]=val
+                    i1+=1
+            else: # k2>k1:
+                new_idx[i_all]=k1
+                new_vals[i_all]=self.vals_ptr[i1]
+                i1+=1
+            i_all+=1
+        while i1<n1:
+            new_idx[i_all]=self.idx_ptr[i1]
+            new_vals[i_all]=self.vals_ptr[i1]
+            i1+=1
+            i_all+=1
+        else:
+            while i2<n2:
+                new_idx[i_all]=other.idx_ptr[i2]
+                new_vals[i_all]=other.vals_ptr[i2]
+                i2+=1
+                i_all+=1
+        assert i_all==n_all
+        result=SparseVector{{T}}()
+        result.my_len=n_all
+        result.idx_ptr=new_idx
+        result.vals_ptr=new_vals
+        return result
+    def __lshift__(self, int k):
+        cdef SparseVector{{T}} result
+        cdef coordinate_t i
+        result=SparseVector{{T}}()
+        result.my_len=self.my_len
+        result.idx_ptr=<coordinate_t *>PyMem_Malloc(result.my_len*sizeof(coordinate_t))
+        result.vals_ptr=<{{tt}} *>PyMem_Malloc(result.my_len*sizeof({{tt}}))
+        for i from 0<=i<self.my_len:
+            result.idx_ptr[i]=self.idx_ptr[i]+k
+        for i from 0<=i<self.my_len:
+            result.vals_ptr[i]=self.vals_ptr[i]
+        return result
+    def __ilshift__(self, int k):
+        cdef SparseVector{{T}} result
+        cdef coordinate_t i
+        for i from 0<=i<self.my_len:
+            self.idx_ptr[i]+=k
+        return self
+    def __getitem__(self, int i):
+        if i<0:
+            i=self.my_len+i
+        if i>=self.my_len or i<0:
+            raise IndexError
+        return (self.idx_ptr[i],self.vals_ptr[i])
+    def __repr__(self):
+        cdef unsigned int i
+        ss=[]
+        for i from 0<=i<self.my_len:
+            ss.append('(%d,%s)'%(self.idx_ptr[i],self.vals_ptr[i]))
+        return 'SparseVector{{T}}([%s])'%(','.join(ss))
+    def __reduce_ex__(self,protocol):
+        if protocol==0:
+            # choose compatibility over performance.
+            return (SparseVector{{T}},(list(self),),())
+        else:
+            s_idx=PyString_FromStringAndSize(<char *>self.idx_ptr,self.my_len*sizeof(coordinate_t))
+            s_vals=PyString_FromStringAndSize(<char *>self.vals_ptr,self.my_len*sizeof({{tt}}))
+            return (SparseVector{{T}},(None,),(s_idx,s_vals))
+    def __setstate__(self,state):
+        cdef coordinate_t *p_idx
+        cdef {{tt}} *p_vals
+        if len(state)==0:
+            pass
+        elif len(state)==2:
+            assert (self.idx_ptr==NULL)
+            (s_idx, s_vals)=state
+            p_idx=<coordinate_t *>(<char *>s_idx)
+            p_vals=<{{tt}} *>(<char *>s_vals)
+            self.my_len=len(s_idx)/sizeof(coordinate_t)
+            self.idx_ptr=<coordinate_t *>PyMem_Malloc(self.my_len*sizeof(coordinate_t))
+            self.vals_ptr=<{{tt}} *>PyMem_Malloc(self.my_len*sizeof({{tt}}))
+            for i from 0<=i<self.my_len:
+                self.idx_ptr[i]=p_idx[i]
+                self.vals_ptr[i]=p_vals[i]
+    def __dealloc__(self):
+        if self.buf is None:
+            PyMem_Free(self.idx_ptr)
+            PyMem_Free(self.vals_ptr)
+        else:
+            self.buf=None
+        self.idx_ptr=<coordinate_t *>0
+        self.vals_ptr=<{{tt}} *>0
+        self.my_len=0
+    def to_scipy(self):
+        cdef numpy.ndarray[numpy.{{t_np}}_t, ndim=1] data
+        cdef numpy.ndarray[numpy.int32_t, ndim=1] indices
+        cdef numpy.ndarray[numpy.int32_t, ndim=1] indptr
+        cdef int i,j
+        indptr=numpy.zeros(2, numpy.int32)
+        indices=numpy.zeros(self.my_len, numpy.int32)
+        data=numpy.zeros(self.my_len, numpy.{{t_np}})
+        indptr[1]=self.my_len
+        for i from 0<=i<self.my_len:
+            indices[i]=0
+        for i from 0<=i<self.my_len:
+            data[i]=self.vals_ptr[i]
+        return (data,indices,indptr)
+
+emptyvec_{{T}}=SparseVector{{T}}([])
+
+cdef class SparseVectors{{T}}:
+    def __init__(self):
+       self.vecs = []
+    cpdef SparseVector{{T}} to_vec(self):
+        cdef SparseVector{{T}} vec
+        cdef {{tt}} weight
+        cdef size_t i, j
+        cdef Vec{{T}}1 result = Vec{{T}}1()
+        for i from 0<=i<len(self.vecs):
+            weight = self.weights.at(i)
+            vec = self.vecs[i]
+            for j from 0<=j<vec.my_len:
+                result.add_count(vec.idx_ptr[j], weight*vec.vals_ptr[j])
+        return result.to_sparse()
+    cpdef add(self, SparseVector{{T}} vec, {{tt}} weight=1):
+        self.vecs.append(vec)
+        self.weights.push_back(weight)
+    def __mul__(self, factor):
+        cdef SparseVector{{T}} vec
+        cdef {{tt}} weight
+        cdef SparseVectors{{T}} result = SparseVectors{{T}}
+        for i from 0<=i<len(self.vecs):
+            weight = self.weights.at(i)
+            vec = self.vecs[i]
+            result.add(vec, weight*factor)
+    def __add__(self, others):
+        cdef SparseVector{{T}} vec
+        cdef {{tt}} weight
+        cdef SparseVectors{{T}} oth_vecs = others
+        cdef SparseVectors{{T}} result = SparseVectors{{T}}
+        for i from 0<=i<len(self.vecs):
+            weight = self.weights.at(i)
+            vec = self.vecs[i]
+            result.add(vec, weight)
+        for i from 0<=i<len(oth_vecs.vecs):
+            weight = oth_vecs.weights.at(i)
+            vec = oth_vecs.vecs[i]
+            result.add(vec, weight)
+        return result
+    def __sub__(SparseVectors{{T}} self, SparseVectors{{T}} others):
+        cdef SparseVector{{T}} vec
+        cdef {{tt}} weight
+        cdef SparseVectors{{T}} oth_vecs = others
+        cdef SparseVectors{{T}} result = SparseVectors{{T}}()
+        for i from 0<=i<len(self.vecs):
+            weight = self.weights.at(i)
+            vec = self.vecs[i]
+            result.add(vec, weight)
+        for i from 0<=i<len(oth_vecs.vecs):
+            weight = oth_vecs.weights.at(i)
+            vec = oth_vecs.vecs[i]
+            result.add(vec, -weight)
+        return result
+    cdef {{tt}} _dotFull(self, const_{{tt}}_ptr full_ptr):
+        cdef size_t i, j
+        cdef {{tt}} weight
+        cdef SparseVector{{T}} vec
+        cdef {{tt}} result=0
+        for i from 0<=i<len(self.vecs):
+            weight = self.weights.at(i)
+            vec = self.vecs.at(i)
+            for j from 0<=j<vec.my_len:
+                result += full_ptr[vec.indices[j]]*weight*vec.vals_ptr[j]
+        return result
+    def __len__(self):
+        return len(self.vecs)
+    def __getitem__(self, k):
+        vec = self.vecs[k]
+        return (self.weights.at(k), vec)
+{%- endif %}
+{% endfor %}
+
+def run_test():
+    cdef VecI2 counts
+    counts=VecI2()
+    counts.c_add(0,1,12)
+    counts.c_add(0,13,1312)
+    counts.c_add(1,0,8)
+    counts.c_add(0,0,23)
+    counts.c_add(0,1,12)
+    counts.c_add(1,0,8)
+    for xs in counts.item_iter():
+        print ' '.join([str(x) for x in xs])
+    cdef CSRMatrixI mat
+    mat=counts.to_csr()
+    mat.print_csr()
+    print "mat[0,1]==%d"%(mat.get_count(0,1))
+    counts.clear()
+    counts.c_add(2,1,12)
+    counts.c_add(1,13,1312)
+    counts.c_add(0,12,2412)
+    counts.c_add(1,0,8)
+    counts.c_add(0,2,23)
+    counts.c_add(0,1,12)
+    counts.c_add(1,0,8)
+    for xs in counts.item_iter():
+        print ' '.join([str(x) for x in xs])
+    mat2=counts.to_csr()
+    mat2.print_csr()
+    mat3=mat+mat2
+    mat3.print_csr()
+    mat3.write_binary(file('/tmp/mat3','w'))
+    mat4=mmapCSR(file('/tmp/mat3'))
+    mat4.print_csr()
+    mat4=None
+    mat5=mat3.transpose()
+    mat5.print_csr()
+    mat6=mat5.transpose()
+    mat6.print_csr()
+    for xs in mat6.item_iter():
+        print ' '.join([str(x) for x in xs])
+    for sv in mat6:
+        print sv
