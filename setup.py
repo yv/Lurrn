@@ -53,5 +53,6 @@ setup(name='Lurrn',
       entry_points={
       },
       packages=['lurrn'],
-      package_dir={'': 'py_src'}
+      package_dir={'': 'py_src'},
+      requires=['numpy', 'simplejson']
       )

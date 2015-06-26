@@ -1,0 +1,221 @@
+Sparse Vectors
+==============
+
+The class VecD1 can be used to count things:
+    >>> from lurrn.sparsmat import *
+    >>> import numpy
+    >>> a=VecD1()
+    >>> a.add_count(1,1.0)
+    >>> a.add_count(2,1.0)
+    >>> a
+    VecD1([(1, 1.0), (2, 1.0)])
+    >>> b=VecD1()
+    >>> b.add_count(1,1.0)
+    >>> b.add_count(3,1.0)
+    >>> b
+    VecD1([(1, 1.0), (3, 1.0)])
+
+The to_sparse() method converts the sparse vector to a different
+representation that is more static (and hopefully more efficient):
+    >>> aa=a.to_sparse()
+    >>> aa
+    SparseVectorD([(1,1.0),(2,1.0)])
+    >>> bb=b.to_sparse()
+
+Sparse vectors can be added:
+    >>> aa+bb
+    SparseVectorD([(1,2.0),(2,1.0),(3,1.0)])
+
+addition should be commutative:
+    >>> bb+aa
+    SparseVectorD([(1,2.0),(2,1.0),(3,1.0)])
+
+Sparse vectors can be or-ed (taking the maximum of each column):
+    >>> aa|bb
+    SparseVectorD([(1,1.0),(2,1.0),(3,1.0)])
+
+or-ing should also be commutative:
+    >>> bb|aa
+    SparseVectorD([(1,1.0),(2,1.0),(3,1.0)])
+
+The scale method scales by some array
+    >>> a_scale = numpy.array([5.0, 4.0, 3.0, 2.0, 1.0])
+    >>> aa.scale_array(a_scale)
+    SparseVectorD([(1,4.0),(2,3.0)])
+
+The dotMatrix method computes a dense vector y=Ax with A dense, x sparse
+    >>> a_mat = numpy.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]).T
+    >>> a_mat.shape
+    (3, 2)
+    >>> aa.dotMatrix(a_mat)
+    array([  5.,  11.])
+
+Sparse vectors can be pickled and unpickled in both ASCII and binary formats
+    >>> import cPickle
+    >>> s=cPickle.dumps(aa)
+    >>> cPickle.loads(s)
+    SparseVectorD([(1,1.0),(2,1.0)])
+    >>> s=cPickle.dumps(aa,-1)
+    >>> cPickle.loads(s)
+    SparseVectorD([(1,1.0),(2,1.0)])
+
+You can convert a VecD2 to a sparse matrix and transform it to get MI values
+    >>> a=VecD2()
+    >>> a.add_count(1,1,2)
+    >>> a.add_count(2,2,2)
+    >>> a.add_count(1,2,1)
+    >>> a.add_count(3,3,1)
+    >>> b=a.to_csr()
+    >>> b.left_marginals()
+    array([ 0.,  3.,  2.,  1.])
+    >>> b.right_marginals()
+    array([ 0.,  2.,  3.,  1.])
+    >>> c=b.transform_mi()
+    >>> list(c)
+    [SparseVectorD([]), SparseVectorD([(1,0.69314718056)]), SparseVectorD([(2,0.69314718056)]), SparseVectorD([(3,1.79175946923)])]
+
+You can scale or filter values using thresholds for each column
+    >>> thr=numpy.array([1.0,0.7,1.0,1.0], dtype=numpy.float64)
+    >>> d=c.apply_scaling(thr)
+    >>> list(d)
+    [SparseVectorD([]), SparseVectorD([(1,0.990210257943)]), SparseVectorD([(2,0.69314718056)]), SparseVectorD([(3,1.0)])]
+    >>> d=c.apply_threshold(thr)
+    >>> list(d)
+    [SparseVectorD([]), SparseVectorD([]), SparseVectorD([]), SparseVectorD([(3,1.0)])]
+
+VecD2 instances can be remapped by providing an array of booleans:
+    >>> wanted1=numpy.array([False,True,False,True])
+    >>> a.remap(1,wanted1)
+    VecD2([(1, 0, 2.0), (3, 1, 1.0)])
+    >>> a.remap(0,wanted1)
+    VecD2([(0, 1, 2.0), (0, 2, 1.0), (1, 3, 1.0)])
+
+You can get type counts for a vector with multiple dimensions
+    >>> a.get_type_counts()
+    array([0, 2, 1, 1], dtype=int32)
+
+You can add two vectors of the same type/dimensionality together:
+    >>> a+a
+    VecD2([(1, 1, 4.0), (1, 2, 2.0), (2, 2, 4.0), (3, 3, 2.0)])
+    >>> d=VecD2()
+    >>> d.add_count(2,1,3)
+    >>> d.add_count(3,3,2)
+    >>> d.add_count(3,4,1)
+    >>> d+a
+    VecD2([(1, 1, 2.0), (1, 2, 1.0), (2, 1, 3.0), (2, 2, 2.0), (3, 3, 3.0), (3, 4, 1.0)])
+    >>> a+d
+    VecD2([(1, 1, 2.0), (1, 2, 1.0), (2, 1, 3.0), (2, 2, 2.0), (3, 3, 3.0), (3, 4, 1.0)])
+
+You can save tuple vectors to a file object with the .tofile(f) method and load it again
+with the .fromfile(f) method
+    >>> from cStringIO import StringIO
+    >>> f=StringIO()
+    >>> d.tofile(f)
+    >>> a.tofile(f)
+    >>> f.reset()
+    >>> c2=VecD2()
+    >>> c2.fromfile(f)
+    >>> c2
+    VecD2([(2, 1, 3.0), (3, 3, 2.0), (3, 4, 1.0)])
+    >>> c2.fromfile(f)
+    >>> c2
+    VecD2([(1, 1, 2.0), (1, 2, 1.0), (2, 2, 2.0), (3, 3, 1.0)])
+    
+LargeVec objects behave like Vec objects, but should be more efficient for
+larger tensors:
+    >>> a=LargeVecD2()
+    >>> a.add_count(1,1,2)
+    >>> a.add_count(2,2,2)
+    >>> a.add_count(1,2,1)
+    >>> a.add_count(3,3,1)
+    >>> a.ensure_compact()
+    >>> a.add_count(1,1,2)
+    >>> a.add_count(2,2,2)
+    >>> a.add_count(1,2,1)
+    >>> a.add_count(3,3,1)
+    >>> a.ensure_compact()
+    >>> a.compact[0]
+    VecD2([(1, 1, 4.0), (1, 2, 2.0), (2, 2, 4.0), (3, 3, 2.0)])
+    >>> list(a)    
+    [(1, 1, 4.0), (1, 2, 2.0), (2, 2, 4.0), (3, 3, 2.0)]
+
+You can also get type counts for LargeVec objects
+    >>> a.get_type_counts()
+    array([0, 2, 1, 1], dtype=int32)
+    >>> a.get_type_counts(1)
+    array([0, 1, 2, 1], dtype=int32)
+    >>> a.add_count(2,5,5)
+    >>> a.get_type_counts()
+    array([0, 2, 2, 1], dtype=int32)
+    >>> a.get_type_counts(1)
+    array([0, 1, 2, 1, 0, 1], dtype=int32)
+    
+You can remap one given dimension
+    >>> filt=(a.get_type_counts(1)>=1)
+    >>> filt
+    array([False,  True,  True,  True, False,  True], dtype=bool)
+    >>> filt.cumsum()-1
+    array([-1,  0,  1,  2,  2,  3])
+    >>> a.compact[0]
+    VecD2([(1, 1, 4.0), (1, 2, 2.0), (2, 2, 4.0), (2, 5, 5.0), (3, 3, 2.0)])
+    >>> a.remap(1, filt)
+    VecD2([(1, 0, 4.0), (1, 1, 2.0), (2, 1, 4.0), (2, 3, 5.0), (3, 2, 2.0)])
+    >>> a.remap(1, (a.get_type_counts(1)>=2))
+    VecD2([(1, 0, 2.0), (2, 0, 4.0)])
+
+VecV1 objects behave like sets of integers
+    >>> a=VecV1()
+    >>> a.add_count(12)
+    >>> a.add_count(1)
+    >>> a.add_count(142)
+    >>> a.add_count(1342)
+    >>> a.add_count(1)
+    >>> a
+    VecV1([1, 12, 142, 1342])
+
+SparseVec objects can be created from dense arrays
+   >>> a1 = numpy.zeros(10)
+   >>> a1[2] = 5
+   >>> a1[5] = 7
+   >>> a1[9] = 2
+   >>> a2 = SparseVectorD()
+   >>> a2.from_dense(a1)
+   3
+   >>> a2
+   SparseVectorD([(2,5.0),(5,7.0),(9,2.0)])
+
+Alphabet
+========
+
+CPPUniAlphabet is an alphabet instance that stores unicode values
+as 8-bit strings internally to save memory.
+
+    >>> import alphabet
+    >>> a1=alphabet.CPPUniAlphabet()
+    >>> a1['foo']
+    0
+    >>> a1['bar']
+    1
+    >>> a1[u'foo']
+    0
+    >>> a1[u'fo\u00df']
+    2
+    >>> list(a1)
+    [u'foo', u'bar', u'fo\xdf']
+
+You can write an alphabet to a file
+    >>> f=StringIO()
+    >>> a1.tofile(f)
+    >>> a2=alphabet.CPPUniAlphabet()
+    >>> f.reset()
+    >>> a2.fromfile(f)
+    >>> list(a2)
+    [u'foo', u'bar', u'fo\xdf']
+
+The CCAData class allows you to work with co-occurrence data:
+    >>> from pytree.latent_features import CCAData
+    >>> cca = CCAData('a', 'b', 'c')
+    >>> cca.add_count(['a','b'],['3','4'])
+    >>> cca.add_count(['a','c'],['12','654'])
+    >>> cca.prune_y(3)
+    >>> cca.prune_x(3)

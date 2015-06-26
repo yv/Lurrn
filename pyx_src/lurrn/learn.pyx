@@ -231,9 +231,6 @@ cdef class SgdMomentum:
         cdef int k
         for k from 0<=k<self.n_dimensions:
             result += fabs(self.weights[k])
-        print "N_DIMS:", self.n_dimensions
-        print "SCALE:", self.weights_scale
-        print "UNSCALED:", result
         return result * self.weights_scale
     def set_weights(self, w):
         self.weights[:] = w
@@ -311,8 +308,10 @@ cdef class FileModel:
         self.n_dimensions = len(numbers)
     cpdef double score(self, SparseVectorD vec, bint use_avg=True):
         return vec._dotFull(& self.weights[0])
-
-
+    def get_dense(self, start, end):
+        w = numpy.zeros(end-start)
+        w[:] = self.weights[start:end]
+        return w
 
 def make_classifier(tp, weights, fc=None):
     if tp == 'adagrad':

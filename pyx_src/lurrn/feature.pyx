@@ -2,7 +2,7 @@ from itertools import izip
 cimport lurrn.sparsmat as sparsmat
 from lurrn import sparsmat
 from python_list cimport PyList_Append, PyList_GET_SIZE
-from python_mem cimport PyMem_Malloc, PyMem_Free
+from python_mem cimport PyMem_Malloc, PyMem_Free, PyMem_Realloc
 import simplejson as json
 import alphabet
 cimport alphabet
@@ -657,8 +657,17 @@ cdef class FeatureHasher:
     see also http://planetmath.org/goodhashtableprimes
     '''
     cdef readonly int num_dimensions
+    cdef long int *hash_cache
+    cdef long hash_cache_size
+    cdef sparsmat.VecD1 result_cache
     def __init__(self, dimensions=514229):
         self.num_dimensions = dimensions
+        self.hash_cache = NULL
+        self.result_cache = sparsmat.VecD1()
+    def __dealloc__(self):
+        if self.hash_cache != NULL:
+            PyMem_Free(self.hash_cache)
+        self.hash_cache = NULL
     def __call__(self, lst, target=None):
         cdef long int tgt_hash
         cdef sparsmat.VecD1 result
@@ -667,6 +676,30 @@ cdef class FeatureHasher:
         for s in lst:
             k = (hash(s)+tgt_hash)%self.num_dimensions
             result.add_count(k, 1)
+        return result.to_sparse()
+    def cross(self, lst, lst2):
+        cdef long *tgt_hash
+        cdef long hash_s
+        cdef int i
+        cdef int n
+        cdef sparsmat.VecD1 result = self.result_cache
+        result.clear()
+        n = len(lst2)
+        if self.hash_cache == NULL:
+            self.hash_cache = <long *> PyMem_Malloc(n * sizeof(long))
+            self.hash_cache_size = n
+        elif self.hash_cache_size < n:
+            self.hash_cache = <long *> PyMem_Realloc(self.hash_cache, n * sizeof(long))
+            self.hash_cache_size = n
+        tgt_hash = self.hash_cache
+        for i from 0<=i<n:
+            tgt_hash[i] = hash(lst2[i])*97
+        result = sparsmat.VecD1()
+        for s in lst:
+            hash_s = hash(s)
+            for i from 0<=i<n:
+                k = (hash_s+tgt_hash[i])%self.num_dimensions
+                result.add_count(k, 1)
         return result.to_sparse()
 
 cdef empty_sv=sparsmat.VecD1().to_sparse()

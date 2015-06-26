@@ -1,0 +1,41 @@
+The package lurrn.learn implements some online learning.
+
+>>> from lurrn import learn, fcomb
+>>> fc = fcomb.FCombo(1)
+>>> a=learn.AdaGrad(100)
+>>> b=fc(['a','bla'])
+>>> a.score(b, False)
+0.0
+>>> a.update([(1.0, b)])
+>>> a.score(b, False) > 0.0
+True
+>>> a.weights[fc.dict['a']]>0
+True
+>>> c=fc(['b','blu'])
+>>> a.score(c, False)
+0.0
+>>> a.update([(-1.0, c)])
+>>> a.score(c, False) < 0.0
+True
+>>> a.update([(-1.0, c)])
+>>> a.score(c, False) < 0.0
+True
+>>> a=learn.AvgPer(100)
+>>> b=fc(['a','bla'])
+>>> a.score(b, False)
+0.0
+>>> a.update([(1.0, b)])
+>>> a.score(b, False) > 0.0
+True
+>>> a.weights[fc.dict['a']]>0
+True
+>>> c=fc(['b','blu'])
+>>> a.score(c, False)
+0.0
+>>> a.update([(-1.0, c)])
+>>> a.score(c, False) < 0.0
+True
+>>> a.update([(-1.0, c)])
+>>> a.score(c, False) < 0.0
+True
+
