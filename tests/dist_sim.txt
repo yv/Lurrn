@@ -190,7 +190,7 @@ Alphabet
 CPPUniAlphabet is an alphabet instance that stores unicode values
 as 8-bit strings internally to save memory.
 
-    >>> import alphabet
+    >>> from lurrn import alphabet
     >>> a1=alphabet.CPPUniAlphabet()
     >>> a1['foo']
     0
@@ -212,10 +212,3 @@ You can write an alphabet to a file
     >>> list(a2)
     [u'foo', u'bar', u'fo\xdf']
 
-The CCAData class allows you to work with co-occurrence data:
-    >>> from pytree.latent_features import CCAData
-    >>> cca = CCAData('a', 'b', 'c')
-    >>> cca.add_count(['a','b'],['3','4'])
-    >>> cca.add_count(['a','c'],['12','654'])
-    >>> cca.prune_y(3)
-    >>> cca.prune_x(3)

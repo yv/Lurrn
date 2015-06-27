@@ -4,34 +4,34 @@ standard setup script. This needs at least numpy and Cython
 to be installed.
 '''
 from setuptools import setup, Extension
-from Cython.Distutils.build_ext import build_ext as _cython_build_ext
-from numpy.distutils.core import \
-    setup as numpy_setup, Extension as numpy_Extension
-import os
-import os.path
-import numpy
 
-incdirs = [numpy.get_include(), 'include', 'pyx_src', 'pyx_src/lurrn']
+class lazy_cythonize(list):
+    def __init__(self, callback):
+        self._list = None
+        self.callback = callback
+    def c_list(self):
+        if self._list is None:
+            self._list = self.callback()
+        return self._list
+    def __iter__(self):
+        return iter(self.c_list())
+    def __getitem__(self, ii):
+        return self.c_list()[ii]
+    def __len__(self):
+        return len(self.c_list())
 
 # depending on gcc version, use gnu++0x or c++11
 CXX_STD_OPT = '-std=gnu++0x'
 
-def replace_suffix(path, new_suffix):
-    '''changes the suffix of a filename'''
-    return os.path.splitext(path)[0] + new_suffix
-
-
-class build_ext(_cython_build_ext):
-    def cython_sources(self, sources, extension):
-        return _cython_build_ext.cython_sources(self, sources, extension)
-
-setup(name='Lurrn',
-      version='0.7',
-      description='Simple machine learning library',
-      author='Yannick Versley',
-      author_email='versley@cl.uni-heidelberg.de',
-      cmdclass={'build_ext': _cython_build_ext},
-      ext_modules=[Extension('lurrn.alphabet',
+def extensions():
+    try:
+        from Cython.Build import cythonize
+        import numpy
+        incdirs = [numpy.get_include(), 'include', 'pyx_src', 'pyx_src/lurrn', '.']
+    except ImportError:
+        cythonize = lambda x: x
+        incdirs = []
+    ext_modules = [Extension('lurrn.alphabet',
                              ['pyx_src/lurrn/alphabet.pyx'],
                              language='c++',
                              extra_compile_args=[CXX_STD_OPT],
@@ -49,10 +49,19 @@ setup(name='Lurrn',
                    Extension('lurrn.learn',
                              ['pyx_src/lurrn/learn.pyx'],
                              language='c++',
-                             include_dirs=incdirs)],
+                             include_dirs=incdirs)]
+    return cythonize(ext_modules)
+
+setup(name='Lurrn',
+      version='0.7.2',
+      description='Simple machine learning library',
+      author='Yannick Versley',
+      author_email='versley@cl.uni-heidelberg.de',
+      ext_modules=lazy_cythonize(extensions),
       entry_points={
       },
+      keywords=['machine learning', 'numpy'],
       packages=['lurrn'],
       package_dir={'': 'py_src'},
-      requires=['numpy', 'simplejson']
+      install_requires=['setuptools>=17', 'cython>=0.19', 'numpy', 'simplejson'],
       )

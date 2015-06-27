@@ -1,7 +1,9 @@
 import numpy
 cimport numpy
 from alphabet import PythonAlphabet
-from .sparsmat cimport VecD1, SparseVectorD, coordinate_t
+from lurrn.sparsmat cimport VecD1, SparseVectorD, coordinate_t
+#cython: wraparound=False
+
 cdef extern from "math.h":
     double pow(double x, double y)
     double fabs(double x)
@@ -276,7 +278,7 @@ cdef class AvgPer:
         cdef double gradf
         cdef double actual_update
         cdef double last_timestep, idle_interval
-        cdef coordinate_t feature
+        cdef unsigned long feature
         for a, vec in gradient:
             for i from 0 <= i < vec.my_len:
                 feature = vec.idx_ptr[i]
