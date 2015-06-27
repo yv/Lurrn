@@ -1,0 +1,3 @@
+recursive-include pyx_src *.pxd
+include include/*.h
+

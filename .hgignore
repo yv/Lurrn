@@ -2,3 +2,6 @@ pyx_src/.*\.cpp$
 ~$
 \.ropeproject
 build/
+dist/
+.idea/
+py_src/Lurrn.egg-info/
