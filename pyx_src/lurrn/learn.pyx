@@ -1,3 +1,4 @@
+import sys
 import numpy
 cimport numpy
 from alphabet import PythonAlphabet
@@ -19,9 +20,10 @@ most online learners have two important functions:
   computes a score for the respective vector. If is_testing
   is false, the learner may do some bookkeeping. If is_testing
   is true, the learner should not do that kind of bookkeeping.
-- update(vecs)
+- update(vecs, loss)
   updates the vector based on vecs which contains the gradient
-  of one partial function
+  of one partial function, and loss (optional, defaults to 1.0)
+  which contains the loss, for margin-scaling approaches
 - get_weights()
   retrieves the current weight vector
 - get_weights_l1()
@@ -197,7 +199,7 @@ cdef class SgdMomentum:
                     (1 - mom_factor) / (1 - mom_l1))
                 self.velocity[k] *= pow(self.momentum, idle)
                 self.lastUpdated[k] = self.timestep
-    def update(self, gradient):
+    def update(self, gradient, loss=1.0):
         cdef double a, gradf
         cdef SparseVectorD vec
         cdef coordinate_t i, k
@@ -222,8 +224,9 @@ cdef class SgdMomentum:
             self.weights[k] *= self.weights_scale
         self.weights_scale = 1.0
         return self.weights
-    def get_dense(self, start, end):
-        self.hiddenUpdates(None, start, end)
+    def get_dense(self, start, end, testing=True):
+        if not testing:
+            self.hiddenUpdates(None, start, end)
         w = numpy.zeros(end-start)
         w[:] = self.weights[start:end]
         w *= self.weights_scale
@@ -299,6 +302,124 @@ cdef class AvgPer:
         numbers = numpy.asarray(self.avgWeights)/self.timestep
         with file(fname_out, 'w') as f:
             numpy.save(f, numbers)
+
+cdef class AvgMira:
+    '''
+    Simple averaged MIRA
+    '''
+    # TODO check if this works
+    cdef readonly int n_dimensions
+    cdef public object fc
+    cdef double C
+    cdef readonly double[:] weights
+    cdef readonly double[:] avgWeights
+    cdef double[:] lastUpdated
+    cdef long int timestep
+
+    def __init__(self, n_dimensions, C=0.1, l1=0.0, l2=0.0,
+                 n_examples=None):
+        self.weights = numpy.zeros(n_dimensions, 'd')
+        self.avgWeights = numpy.zeros(n_dimensions, 'd')
+        self.lastUpdated = numpy.zeros(n_dimensions, 'd')
+        self.timestep = 0
+        self.C = C
+        if l1 != 0.0:
+            print >>sys.stderr, "WARNING: AvgMira does not support l1 reg"
+        if l2 != 0.0:
+            print >>sys.stderr, "WARNING: AvgMira does not support l2 reg"
+
+    def set_weights(self, weights):
+        if len(weights) != len(self.weights):
+            raise ValueError()
+        self.weights = weights
+        self.avgWeights = self.weights.copy()
+    def get_weights_l1(self):
+        cdef double result = 0.0
+        cdef int k
+        for k from 0<=k<self.n_dimensions:
+            result += fabs(self.avgWeights[k])
+        return result / <double>self.timestep
+    cpdef double score(self, SparseVectorD vec, bint use_avg=True):
+        if use_avg and self.timestep > 0:
+            self.hiddenUpdates(vec)
+            return vec._dotFull(& self.avgWeights[0])/self.timestep
+        else:
+            return vec._dotFull( & self.weights[0])
+
+    cdef hiddenUpdates(self, SparseVectorD vec, int start=0, int end=-1):
+        cdef int i
+        cdef unsigned long feature
+        if vec is not None:
+            for i from 0<= i < vec.my_len:
+                feature = vec.idx_ptr[i]
+                last_timestep = self.lastUpdated[feature]
+                idle_interval = self.timestep - last_timestep
+                if idle_interval > 0:
+                    self.avgWeights[feature] += self.weights[feature] * idle_interval
+                    self.lastUpdated[feature] = self.timestep
+        else:
+            if end == -1:
+                end = self.n_dimensions
+            for feature from start<= feature < end:
+                last_timestep = self.lastUpdated[feature]
+                idle_interval = self.timestep - last_timestep
+                if idle_interval > 0:
+                    self.avgWeights[feature] += self.weights[feature] * idle_interval
+                    self.lastUpdated[feature] = self.timestep
+
+    def update(self, gradient, double loss=1.0):
+        cdef double a
+        cdef int i
+        cdef SparseVectorD vec
+        cdef double margin, norm, alpha
+        cdef double gradf
+        cdef double actual_update
+        cdef double last_timestep, idle_interval
+        cdef unsigned long feature
+        # Step 1: calculate update size (alpha s.t. gradient*w >= loss)
+        # <w+grad*alpha, grad> = <w,grad> + alpha*||grad||^2
+        # d.h. <w,grad> + alpha * ||grad||^2 >= loss
+        # d.h. alpha * ||grad||^2 >= loss - <w,grad>
+        # d.h. alpha >= (loss - <w,grad>) / ||grad||^2
+        vec = gradient.to_vec()
+        margin = loss - self.score(vec, False)
+        assert margin >= 0, margin
+        norm = vec.dotSelf()
+        alpha = margin / norm
+        # Step 2: actual update
+        for i from 0 <= i < vec.my_len:
+            feature = vec.idx_ptr[i]
+            gradf = alpha * vec.vals_ptr[i]
+            last_timestep = self.lastUpdated[feature]
+            idle_interval = self.timestep - last_timestep
+            self.lastUpdated[feature] = self.timestep
+            actual_update = self.weights[feature] + gradf
+            self.avgWeights[feature] += self.weights[feature] * idle_interval
+            self.weights[feature] = actual_update
+        self.timestep += 1
+    def get_dense(self, start, end, testing=True):
+        if not testing:
+            self.hiddenUpdates(None, start, end)
+            w = numpy.zeros(end-start)
+            w[:] = self.weights[start:end]
+        else:
+            w = numpy.zeros(end-start)
+            w[:] = self.avgWeights[start:end]
+            w *= 1.0/self.timestep
+        return w
+
+    def __reduce__(self):
+        return (make_classifier, ('mira',
+                                  numpy.asarray(self.avgWeights)/self.timestep,
+                                  self.fc))
+    def save_binary(self, fname_out):
+        numbers = numpy.asarray(self.avgWeights)/self.timestep
+        with file(fname_out, 'w') as f:
+            numpy.save(f, numbers)
+# The MIRA implementation in Moses has the following additional stuff:
+# - averaging only over current epoch (instead of all seen weight vectors)
+# - Moses uses C=0.01 as default
+# - Moses has a learning rate (def. 1) for vector updates
 
 cdef class FileModel:
     cdef readonly int n_dimensions

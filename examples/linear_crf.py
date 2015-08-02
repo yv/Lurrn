@@ -70,7 +70,7 @@ class LinearCRF:
             unigram_feats.append(feat)
         return unigram_feats
 
-    def local_scores(self, unigram_feats, fc, learner):
+    def local_scores(self, unigram_feats, fc, learner, testing=True):
         '''
         computes scores and individual feature vectors
         for the unigram factors in the CRF
@@ -82,7 +82,7 @@ class LinearCRF:
             for i, lbl in enumerate(tag_alphabet):
                 fv_hashed = fc.cross(feat, [lbl])
                 lbl_fv.append(fv_hashed)
-                score = learner.score(fv_hashed)
+                score = learner.score(fv_hashed, testing)
                 uni_scores[posn, i] = score
             uni_fv.append(lbl_fv)
         return (uni_scores, uni_fv)
@@ -166,7 +166,7 @@ class LinearCRF:
                 result += 1.0
         return result
 
-    def local_rescore(self, uni_fv, learner):
+    def local_rescore(self, uni_fv, learner, testing=True):
         '''
         Uses the cached feature vectors to compute
         the score faster than a full call of local_scores
@@ -177,7 +177,7 @@ class LinearCRF:
         uni_scores = numpy.zeros([Nwords, Ntags])
         for i, lbl_fv in enumerate(uni_fv):
             for j, fv_hashed in enumerate(lbl_fv):
-                uni_scores[i, j] = learner.score(fv_hashed)
+                uni_scores[i, j] = learner.score(fv_hashed, testing)
         return uni_scores
 
     def make_training_example(self, fc, learner, verbose=False):
@@ -188,17 +188,18 @@ class LinearCRF:
         Ntags = len(tag_alphabet)
         if self.feature_cache is not None:
             (uni_feats, uni_fv) = self.feature_cache
-            scores = self.local_rescore(uni_fv, learner)
+            scores = self.local_rescore(uni_fv, learner, False)
         else:
             uni_feats = self.featurize(default_features)
             (scores, uni_fv) = self.local_scores(
-                uni_feats, fc, learner)
+                uni_feats, fc, learner, False)
             self.feature_cache = (uni_feats, uni_fv)
         self.augment_scores_with_loss(scores)
-        w_init = learner.get_dense(0, Ntags)
-        w_end = learner.get_dense(Ntags, 2 * Ntags)
+        w_init = learner.get_dense(0, Ntags, False)
+        w_end = learner.get_dense(Ntags, 2 * Ntags, False)
         W_trans = learner.get_dense(
-            2 * Ntags, (Ntags + 2) * Ntags).reshape((Ntags, Ntags))
+            2 * Ntags, (Ntags + 2) * Ntags, False).reshape(
+                (Ntags, Ntags))
         (tags_bad, score_bad) = self.decode_scores(
             scores, w_init, w_end, W_trans)
         fv_good = self.reconstruct_fv(uni_feats, fc, self.tags)
@@ -219,9 +220,9 @@ class LinearCRF:
                             scores[i][tag_alphabet[self.tags[i]]],
                             tags_bad[i],
                             scores[i][tag_alphabet[tags_bad[i]]])
-            assert abs(learner.score(fv_bad.to_vec()) + loss - score_bad) < 0.01, (
+            assert abs(learner.score(fv_bad.to_vec(), False) + loss - score_bad) < 0.01, (
                 self.words, tags_bad,
-                learner.score(fv_bad.to_vec()),
+                learner.score(fv_bad.to_vec(), False),
                 loss, score_bad)
         if loss == 0.0:
             return (None, 0.0)
@@ -235,11 +236,12 @@ class LinearCRF:
         '''
         Ntags = len(tag_alphabet)
         features = self.featurize(default_features)
-        (scores, uni_fv) = self.local_scores(features, fc, learner)
-        w_init = learner.get_dense(0, Ntags)
-        w_end = learner.get_dense(Ntags, 2 * Ntags)
+        (scores, uni_fv) = self.local_scores(features, fc, learner, True)
+        w_init = learner.get_dense(0, Ntags, True)
+        w_end = learner.get_dense(Ntags, 2 * Ntags, True)
         W_trans = learner.get_dense(
-            2 * Ntags, (Ntags + 2) * Ntags).reshape((Ntags, Ntags))
+            2 * Ntags, (Ntags + 2) * Ntags, True).reshape(
+                (Ntags, Ntags))
         (tags, score) = self.decode_scores(scores, w_init, w_end, W_trans)
         return tags
 
@@ -254,7 +256,7 @@ def train_epoch(crfs, fc, learner, epoch):
             verbose=(i % 1000 == 0))
         total_loss += loss
         if vec is not None:
-            learner.update(vec)
+            learner.update(vec, loss)
     t_end = time()
     add_log_item('progress', 'train_epoch',
                  epoch=epoch, seconds=t_end - t_start,
@@ -322,6 +324,9 @@ oparse = optparse.OptionParser()
 oparse.add_option('--dev', dest='dev_fname')
 oparse.add_option('--l2', dest='l2',
                   default=0.0, type='float')
+oparse.add_option('--learner', dest='learner',
+                   default='sgd_momentum',
+                   choices=['sgd_momentum', 'mira'])
 oparse.add_option('--epochs', dest='num_epochs',
                   default=50, type='int')
 oparse.add_option('--prefix', dest='prefix',
@@ -359,7 +364,7 @@ def train_crf_main(argv=None):
         print "Read %d dev examples" % (len(dev_crfs),)
     else:
         dev_crfs = []
-    learner = create_learner('sgd_momentum', fc.num_dimensions,
+    learner = create_learner(opts.learner, fc.num_dimensions,
                              n_examples=len(crfs), l2=opts.l2)
     best_loss = 1e9
     for i in xrange(opts.num_epochs):

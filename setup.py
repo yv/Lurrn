@@ -53,7 +53,7 @@ def extensions():
     return cythonize(ext_modules)
 
 setup(name='Lurrn',
-      version='0.7.2',
+      version='0.7.3',
       description='Simple machine learning library',
       author='Yannick Versley',
       author_email='versley@cl.uni-heidelberg.de',
