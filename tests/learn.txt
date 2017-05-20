@@ -1,7 +1,7 @@
 The package lurrn.learn implements some online learning.
 
->>> from lurrn import learn, fcomb
->>> fc = fcomb.FCombo(1)
+>>> from lurrn import learn, feature
+>>> fc = feature.FCombo(1)
 >>> a=learn.AdaGrad(100)
 >>> b=fc(['a','bla'])
 >>> a.score(b, False)
