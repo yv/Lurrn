@@ -10,14 +10,12 @@ cdef extern from *:
 from cpython cimport *
 
 cdef extern from "cxx_alph.h":
-    struct c_CPPAlphabet "CPPAlphabet":
+    cppclass c_CPPAlphabet "CPPAlphabet":
         int size()
         int sym2num(const_char_ptr sym)
         const_char_ptr num2sym(int num)
         bint growing
         void call_destructor "~CPPAlphabet" ()
-    c_CPPAlphabet *new_CPPAlphabet "new CPPAlphabet"()
-    c_CPPAlphabet *placement_new_CPPAlphabet(c_CPPAlphabet *where)
 
 cdef class AbstractAlphabet:
     cdef int size(self)
@@ -38,13 +36,11 @@ cdef class PythonAlphabet(AbstractAlphabet):
     cdef const_char_ptr num2sym(self, int num)
     cpdef remap(self, numpy.ndarray filt_array)
 
-cdef class CPPAlphabet(AbstractAlphabet):
+cdef class StringAlphabet(AbstractAlphabet):
+    cdef bint use_utf8
     cdef c_CPPAlphabet map
     cdef int size(self)
     cdef int sym2num(self,const_char_ptr sym)
     cdef const_char_ptr num2sym(self, int num)
     cpdef remap(self, numpy.ndarray filt_array)
 
-cdef class CPPUniAlphabet(CPPAlphabet):
-    cdef bint use_utf8
-    cpdef remap(self, numpy.ndarray filt_array)

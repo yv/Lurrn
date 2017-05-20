@@ -51,17 +51,33 @@ def extensions():
                              include_dirs=incdirs)]
     return cythonize(ext_modules)
 
-setup(name='Lurrn',
-      version='0.7.4a',
-      description='Simple machine learning library',
-      author='Yannick Versley',
-      author_email='yversley@gmail.com',
-      ext_modules=lazy_cythonize(extensions),
-      entry_points={
-      },
-      long_description=open('README.md').read(),
-      keywords=['machine learning', 'numpy'],
-      packages=['lurrn'],
-      package_dir={'': 'py_src'},
-      install_requires=['setuptools>=17', 'cython>=0.19', 'numpy', 'simplejson'],
-      )
+setup(
+    name='Lurrn',
+    version='1.0.0',
+    description='Simple machine learning library',
+    author='Yannick Versley',
+    author_email='yversley@gmail.com',
+    ext_modules=lazy_cythonize(extensions),
+    classifiers=[
+        'Development Status :: 5 - Production/Stable',
+        'Intended Audience :: Developers',
+        'License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)',
+        'Operating System :: MacOS :: MacOS X',
+        'Operating System :: POSIX :: Linux',
+        'Programming Language :: C++',
+        'Programming Language :: Cython',
+        'Programming Language :: Python',
+        'Programming Language :: Python :: 2'
+        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3'
+        'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Topic :: Utilities'
+    ],
+    entry_points={},
+    keywords=['machine learning', 'numpy'],
+    packages=['lurrn'],
+    package_dir={'': 'py_src'},
+    install_requires=['setuptools>=17', 'cython>=0.25', 'numpy', 'simplejson'],
+)

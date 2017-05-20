@@ -27,38 +27,26 @@ cdef extern from "math_stuff.h":
 import numpy
 cimport numpy
 
+cimport cython
+from libcpp.vector cimport vector
+from libcpp.algorithm cimport sort
+
 cdef extern from "cxx_gram.h":
     ctypedef unsigned int coordinate_t
 {% for t in wanted_types -%}
 {%- set T,tt,np_t = t %}
     ctypedef {{tt}} *const_{{tt}}_ptr "const {{tt}} *"
 {%- for N in range(1,4) %}
-    struct c_CItem{{T}}{{N}} "CountItem<{{N}},{{tt}}>":
+    struct c_CItem{{T}}{{N}} "CountItem<{{N}},{{tt}}> ":
         int *addr
 {%- if T!='V' %}
         {{tt}} item
-    cppclass c_Vector{{T}} "std::vector<{{tt}}>":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back({{tt}} item)
-        {{tt}} at(int pos)
-        void cxx_destructor "~vector" ()
 {%- endif %}
-    cppclass c_VecIter{{T}}{{N}} "std::vector<CountItem<{{N}},{{tt}}> >::iterator"
-    struct c_SmallerAddr{{T}}{{N}} "smallerAddr<{{N}},{{tt}}>":
+    ctypedef vector[c_CItem{{T}}{{N}}] c_Vec{{T}}{{N}} "std::vector<CountItem<{{N}},{{tt}}> >"
+    ctypedef vector[c_CItem{{T}}{{N}}].iterator c_VecIter{{T}}{{N}} "std::vector<CountItem<{{N}},{{tt}}> >::iterator"
+    struct c_SmallerAddr{{T}}{{N}} "smallerAddr<{{N}},{{tt}}> ":
         pass
-    cppclass c_Vec{{T}}{{N}} "std::vector<CountItem<{{N}},{{tt}}> >":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(c_CItem{{T}}{{N}} item)
-        c_CItem{{T}}{{N}} at(int pos)
-        c_VecIter{{T}}{{N}} begin()
-        c_VecIter{{T}}{{N}} end()
-        void cxx_destructor "~vector" ()
     c_CItem{{T}}{{N}} c_Vec{{T}}{{N}}_get_pointer "get_pointer" (c_Vec{{T}}{{N}} *v, size_t k)
-    void c_IVec{{T}}{{N}}_sort "sort" (c_VecIter{{T}}{{N}} pos0, c_VecIter{{T}}{{N}} pos1, c_SmallerAddr{{T}}{{N}} comp)
 {% if T=='V' %}
     void c_compactify{{T}}{{N}} "compactify_set"(c_Vec{{T}}{{N}} *v)
     bint c_get_count{{T}}{{N}} "get_count_set"(c_Vec{{T}}{{N}} *v,
@@ -174,7 +162,7 @@ cdef class SparseVector{{T}}:
     cpdef double norm_lp(self, double p)
 cdef class SparseVectors{{T}}:
     cdef object vecs
-    cdef c_Vector{{T}} weights
+    cdef vector[cython.{{tt}}] weights
     cpdef SparseVector{{T}} to_vec(self)
     cpdef add(self, SparseVector{{T}} vec, {{tt}} weight=*)
     cdef {{tt}} _dotFull(self, const_{{tt}}_ptr full_ptr)

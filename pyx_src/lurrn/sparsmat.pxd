@@ -27,90 +27,46 @@ cdef extern from "math_stuff.h":
 import numpy
 cimport numpy
 
+cimport cython
+from libcpp.vector cimport vector
+from libcpp.algorithm cimport sort
+
 cdef extern from "cxx_gram.h":
     ctypedef unsigned int coordinate_t
 
     ctypedef int *const_int_ptr "const int *"
-    struct c_CItemI1 "CountItem<1,int>":
+    struct c_CItemI1 "CountItem<1,int> ":
         int *addr
         int item
-    cppclass c_VectorI "std::vector<int>":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(int item)
-        int at(int pos)
-        void cxx_destructor "~vector" ()
-    cppclass c_VecIterI1 "std::vector<CountItem<1,int> >::iterator"
-    struct c_SmallerAddrI1 "smallerAddr<1,int>":
+    ctypedef vector[c_CItemI1] c_VecI1 "std::vector<CountItem<1,int> >"
+    ctypedef vector[c_CItemI1].iterator c_VecIterI1 "std::vector<CountItem<1,int> >::iterator"
+    struct c_SmallerAddrI1 "smallerAddr<1,int> ":
         pass
-    cppclass c_VecI1 "std::vector<CountItem<1,int> >":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(c_CItemI1 item)
-        c_CItemI1 at(int pos)
-        c_VecIterI1 begin()
-        c_VecIterI1 end()
-        void cxx_destructor "~vector" ()
     c_CItemI1 c_VecI1_get_pointer "get_pointer" (c_VecI1 *v, size_t k)
-    void c_IVecI1_sort "sort" (c_VecIterI1 pos0, c_VecIterI1 pos1, c_SmallerAddrI1 comp)
 
     void c_compactifyI1 "compactify"(c_VecI1 *v)
     int c_get_countI1 "get_count_v"(c_VecI1 *v,
                                     c_CItemI1)
-    struct c_CItemI2 "CountItem<2,int>":
+    struct c_CItemI2 "CountItem<2,int> ":
         int *addr
         int item
-    cppclass c_VectorI "std::vector<int>":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(int item)
-        int at(int pos)
-        void cxx_destructor "~vector" ()
-    cppclass c_VecIterI2 "std::vector<CountItem<2,int> >::iterator"
-    struct c_SmallerAddrI2 "smallerAddr<2,int>":
+    ctypedef vector[c_CItemI2] c_VecI2 "std::vector<CountItem<2,int> >"
+    ctypedef vector[c_CItemI2].iterator c_VecIterI2 "std::vector<CountItem<2,int> >::iterator"
+    struct c_SmallerAddrI2 "smallerAddr<2,int> ":
         pass
-    cppclass c_VecI2 "std::vector<CountItem<2,int> >":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(c_CItemI2 item)
-        c_CItemI2 at(int pos)
-        c_VecIterI2 begin()
-        c_VecIterI2 end()
-        void cxx_destructor "~vector" ()
     c_CItemI2 c_VecI2_get_pointer "get_pointer" (c_VecI2 *v, size_t k)
-    void c_IVecI2_sort "sort" (c_VecIterI2 pos0, c_VecIterI2 pos1, c_SmallerAddrI2 comp)
 
     void c_compactifyI2 "compactify"(c_VecI2 *v)
     int c_get_countI2 "get_count_v"(c_VecI2 *v,
                                     c_CItemI2)
-    struct c_CItemI3 "CountItem<3,int>":
+    struct c_CItemI3 "CountItem<3,int> ":
         int *addr
         int item
-    cppclass c_VectorI "std::vector<int>":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(int item)
-        int at(int pos)
-        void cxx_destructor "~vector" ()
-    cppclass c_VecIterI3 "std::vector<CountItem<3,int> >::iterator"
-    struct c_SmallerAddrI3 "smallerAddr<3,int>":
+    ctypedef vector[c_CItemI3] c_VecI3 "std::vector<CountItem<3,int> >"
+    ctypedef vector[c_CItemI3].iterator c_VecIterI3 "std::vector<CountItem<3,int> >::iterator"
+    struct c_SmallerAddrI3 "smallerAddr<3,int> ":
         pass
-    cppclass c_VecI3 "std::vector<CountItem<3,int> >":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(c_CItemI3 item)
-        c_CItemI3 at(int pos)
-        c_VecIterI3 begin()
-        c_VecIterI3 end()
-        void cxx_destructor "~vector" ()
     c_CItemI3 c_VecI3_get_pointer "get_pointer" (c_VecI3 *v, size_t k)
-    void c_IVecI3_sort "sort" (c_VecIterI3 pos0, c_VecIterI3 pos1, c_SmallerAddrI3 comp)
 
     void c_compactifyI3 "compactify"(c_VecI3 *v)
     int c_get_countI3 "get_count_v"(c_VecI3 *v,
@@ -133,86 +89,38 @@ cdef extern from "cxx_gram.h":
     void print_csrI "print_csr<int>"(c_CSRMatrixI *v)
 
     ctypedef float *const_float_ptr "const float *"
-    struct c_CItemF1 "CountItem<1,float>":
+    struct c_CItemF1 "CountItem<1,float> ":
         int *addr
         float item
-    cppclass c_VectorF "std::vector<float>":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(float item)
-        float at(int pos)
-        void cxx_destructor "~vector" ()
-    cppclass c_VecIterF1 "std::vector<CountItem<1,float> >::iterator"
-    struct c_SmallerAddrF1 "smallerAddr<1,float>":
+    ctypedef vector[c_CItemF1] c_VecF1 "std::vector<CountItem<1,float> >"
+    ctypedef vector[c_CItemF1].iterator c_VecIterF1 "std::vector<CountItem<1,float> >::iterator"
+    struct c_SmallerAddrF1 "smallerAddr<1,float> ":
         pass
-    cppclass c_VecF1 "std::vector<CountItem<1,float> >":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(c_CItemF1 item)
-        c_CItemF1 at(int pos)
-        c_VecIterF1 begin()
-        c_VecIterF1 end()
-        void cxx_destructor "~vector" ()
     c_CItemF1 c_VecF1_get_pointer "get_pointer" (c_VecF1 *v, size_t k)
-    void c_IVecF1_sort "sort" (c_VecIterF1 pos0, c_VecIterF1 pos1, c_SmallerAddrF1 comp)
 
     void c_compactifyF1 "compactify"(c_VecF1 *v)
     float c_get_countF1 "get_count_v"(c_VecF1 *v,
                                     c_CItemF1)
-    struct c_CItemF2 "CountItem<2,float>":
+    struct c_CItemF2 "CountItem<2,float> ":
         int *addr
         float item
-    cppclass c_VectorF "std::vector<float>":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(float item)
-        float at(int pos)
-        void cxx_destructor "~vector" ()
-    cppclass c_VecIterF2 "std::vector<CountItem<2,float> >::iterator"
-    struct c_SmallerAddrF2 "smallerAddr<2,float>":
+    ctypedef vector[c_CItemF2] c_VecF2 "std::vector<CountItem<2,float> >"
+    ctypedef vector[c_CItemF2].iterator c_VecIterF2 "std::vector<CountItem<2,float> >::iterator"
+    struct c_SmallerAddrF2 "smallerAddr<2,float> ":
         pass
-    cppclass c_VecF2 "std::vector<CountItem<2,float> >":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(c_CItemF2 item)
-        c_CItemF2 at(int pos)
-        c_VecIterF2 begin()
-        c_VecIterF2 end()
-        void cxx_destructor "~vector" ()
     c_CItemF2 c_VecF2_get_pointer "get_pointer" (c_VecF2 *v, size_t k)
-    void c_IVecF2_sort "sort" (c_VecIterF2 pos0, c_VecIterF2 pos1, c_SmallerAddrF2 comp)
 
     void c_compactifyF2 "compactify"(c_VecF2 *v)
     float c_get_countF2 "get_count_v"(c_VecF2 *v,
                                     c_CItemF2)
-    struct c_CItemF3 "CountItem<3,float>":
+    struct c_CItemF3 "CountItem<3,float> ":
         int *addr
         float item
-    cppclass c_VectorF "std::vector<float>":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(float item)
-        float at(int pos)
-        void cxx_destructor "~vector" ()
-    cppclass c_VecIterF3 "std::vector<CountItem<3,float> >::iterator"
-    struct c_SmallerAddrF3 "smallerAddr<3,float>":
+    ctypedef vector[c_CItemF3] c_VecF3 "std::vector<CountItem<3,float> >"
+    ctypedef vector[c_CItemF3].iterator c_VecIterF3 "std::vector<CountItem<3,float> >::iterator"
+    struct c_SmallerAddrF3 "smallerAddr<3,float> ":
         pass
-    cppclass c_VecF3 "std::vector<CountItem<3,float> >":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(c_CItemF3 item)
-        c_CItemF3 at(int pos)
-        c_VecIterF3 begin()
-        c_VecIterF3 end()
-        void cxx_destructor "~vector" ()
     c_CItemF3 c_VecF3_get_pointer "get_pointer" (c_VecF3 *v, size_t k)
-    void c_IVecF3_sort "sort" (c_VecIterF3 pos0, c_VecIterF3 pos1, c_SmallerAddrF3 comp)
 
     void c_compactifyF3 "compactify"(c_VecF3 *v)
     float c_get_countF3 "get_count_v"(c_VecF3 *v,
@@ -235,86 +143,38 @@ cdef extern from "cxx_gram.h":
     void print_csrF "print_csr<float>"(c_CSRMatrixF *v)
 
     ctypedef double *const_double_ptr "const double *"
-    struct c_CItemD1 "CountItem<1,double>":
+    struct c_CItemD1 "CountItem<1,double> ":
         int *addr
         double item
-    cppclass c_VectorD "std::vector<double>":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(double item)
-        double at(int pos)
-        void cxx_destructor "~vector" ()
-    cppclass c_VecIterD1 "std::vector<CountItem<1,double> >::iterator"
-    struct c_SmallerAddrD1 "smallerAddr<1,double>":
+    ctypedef vector[c_CItemD1] c_VecD1 "std::vector<CountItem<1,double> >"
+    ctypedef vector[c_CItemD1].iterator c_VecIterD1 "std::vector<CountItem<1,double> >::iterator"
+    struct c_SmallerAddrD1 "smallerAddr<1,double> ":
         pass
-    cppclass c_VecD1 "std::vector<CountItem<1,double> >":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(c_CItemD1 item)
-        c_CItemD1 at(int pos)
-        c_VecIterD1 begin()
-        c_VecIterD1 end()
-        void cxx_destructor "~vector" ()
     c_CItemD1 c_VecD1_get_pointer "get_pointer" (c_VecD1 *v, size_t k)
-    void c_IVecD1_sort "sort" (c_VecIterD1 pos0, c_VecIterD1 pos1, c_SmallerAddrD1 comp)
 
     void c_compactifyD1 "compactify"(c_VecD1 *v)
     double c_get_countD1 "get_count_v"(c_VecD1 *v,
                                     c_CItemD1)
-    struct c_CItemD2 "CountItem<2,double>":
+    struct c_CItemD2 "CountItem<2,double> ":
         int *addr
         double item
-    cppclass c_VectorD "std::vector<double>":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(double item)
-        double at(int pos)
-        void cxx_destructor "~vector" ()
-    cppclass c_VecIterD2 "std::vector<CountItem<2,double> >::iterator"
-    struct c_SmallerAddrD2 "smallerAddr<2,double>":
+    ctypedef vector[c_CItemD2] c_VecD2 "std::vector<CountItem<2,double> >"
+    ctypedef vector[c_CItemD2].iterator c_VecIterD2 "std::vector<CountItem<2,double> >::iterator"
+    struct c_SmallerAddrD2 "smallerAddr<2,double> ":
         pass
-    cppclass c_VecD2 "std::vector<CountItem<2,double> >":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(c_CItemD2 item)
-        c_CItemD2 at(int pos)
-        c_VecIterD2 begin()
-        c_VecIterD2 end()
-        void cxx_destructor "~vector" ()
     c_CItemD2 c_VecD2_get_pointer "get_pointer" (c_VecD2 *v, size_t k)
-    void c_IVecD2_sort "sort" (c_VecIterD2 pos0, c_VecIterD2 pos1, c_SmallerAddrD2 comp)
 
     void c_compactifyD2 "compactify"(c_VecD2 *v)
     double c_get_countD2 "get_count_v"(c_VecD2 *v,
                                     c_CItemD2)
-    struct c_CItemD3 "CountItem<3,double>":
+    struct c_CItemD3 "CountItem<3,double> ":
         int *addr
         double item
-    cppclass c_VectorD "std::vector<double>":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(double item)
-        double at(int pos)
-        void cxx_destructor "~vector" ()
-    cppclass c_VecIterD3 "std::vector<CountItem<3,double> >::iterator"
-    struct c_SmallerAddrD3 "smallerAddr<3,double>":
+    ctypedef vector[c_CItemD3] c_VecD3 "std::vector<CountItem<3,double> >"
+    ctypedef vector[c_CItemD3].iterator c_VecIterD3 "std::vector<CountItem<3,double> >::iterator"
+    struct c_SmallerAddrD3 "smallerAddr<3,double> ":
         pass
-    cppclass c_VecD3 "std::vector<CountItem<3,double> >":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(c_CItemD3 item)
-        c_CItemD3 at(int pos)
-        c_VecIterD3 begin()
-        c_VecIterD3 end()
-        void cxx_destructor "~vector" ()
     c_CItemD3 c_VecD3_get_pointer "get_pointer" (c_VecD3 *v, size_t k)
-    void c_IVecD3_sort "sort" (c_VecIterD3 pos0, c_VecIterD3 pos1, c_SmallerAddrD3 comp)
 
     void c_compactifyD3 "compactify"(c_VecD3 *v)
     double c_get_countD3 "get_count_v"(c_VecD3 *v,
@@ -337,64 +197,37 @@ cdef extern from "cxx_gram.h":
     void print_csrD "print_csr<double>"(c_CSRMatrixD *v)
 
     ctypedef void *const_void_ptr "const void *"
-    struct c_CItemV1 "CountItem<1,void>":
+    struct c_CItemV1 "CountItem<1,void> ":
         int *addr
-    cppclass c_VecIterV1 "std::vector<CountItem<1,void> >::iterator"
-    struct c_SmallerAddrV1 "smallerAddr<1,void>":
+    ctypedef vector[c_CItemV1] c_VecV1 "std::vector<CountItem<1,void> >"
+    ctypedef vector[c_CItemV1].iterator c_VecIterV1 "std::vector<CountItem<1,void> >::iterator"
+    struct c_SmallerAddrV1 "smallerAddr<1,void> ":
         pass
-    cppclass c_VecV1 "std::vector<CountItem<1,void> >":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(c_CItemV1 item)
-        c_CItemV1 at(int pos)
-        c_VecIterV1 begin()
-        c_VecIterV1 end()
-        void cxx_destructor "~vector" ()
     c_CItemV1 c_VecV1_get_pointer "get_pointer" (c_VecV1 *v, size_t k)
-    void c_IVecV1_sort "sort" (c_VecIterV1 pos0, c_VecIterV1 pos1, c_SmallerAddrV1 comp)
 
     void c_compactifyV1 "compactify_set"(c_VecV1 *v)
     bint c_get_countV1 "get_count_set"(c_VecV1 *v,
                                     c_CItemV1)
 
-    struct c_CItemV2 "CountItem<2,void>":
+    struct c_CItemV2 "CountItem<2,void> ":
         int *addr
-    cppclass c_VecIterV2 "std::vector<CountItem<2,void> >::iterator"
-    struct c_SmallerAddrV2 "smallerAddr<2,void>":
+    ctypedef vector[c_CItemV2] c_VecV2 "std::vector<CountItem<2,void> >"
+    ctypedef vector[c_CItemV2].iterator c_VecIterV2 "std::vector<CountItem<2,void> >::iterator"
+    struct c_SmallerAddrV2 "smallerAddr<2,void> ":
         pass
-    cppclass c_VecV2 "std::vector<CountItem<2,void> >":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(c_CItemV2 item)
-        c_CItemV2 at(int pos)
-        c_VecIterV2 begin()
-        c_VecIterV2 end()
-        void cxx_destructor "~vector" ()
     c_CItemV2 c_VecV2_get_pointer "get_pointer" (c_VecV2 *v, size_t k)
-    void c_IVecV2_sort "sort" (c_VecIterV2 pos0, c_VecIterV2 pos1, c_SmallerAddrV2 comp)
 
     void c_compactifyV2 "compactify_set"(c_VecV2 *v)
     bint c_get_countV2 "get_count_set"(c_VecV2 *v,
                                     c_CItemV2)
 
-    struct c_CItemV3 "CountItem<3,void>":
+    struct c_CItemV3 "CountItem<3,void> ":
         int *addr
-    cppclass c_VecIterV3 "std::vector<CountItem<3,void> >::iterator"
-    struct c_SmallerAddrV3 "smallerAddr<3,void>":
+    ctypedef vector[c_CItemV3] c_VecV3 "std::vector<CountItem<3,void> >"
+    ctypedef vector[c_CItemV3].iterator c_VecIterV3 "std::vector<CountItem<3,void> >::iterator"
+    struct c_SmallerAddrV3 "smallerAddr<3,void> ":
         pass
-    cppclass c_VecV3 "std::vector<CountItem<3,void> >":
-        size_t size()
-        void reserve(size_t n)
-        void resize(size_t n)
-        void push_back(c_CItemV3 item)
-        c_CItemV3 at(int pos)
-        c_VecIterV3 begin()
-        c_VecIterV3 end()
-        void cxx_destructor "~vector" ()
     c_CItemV3 c_VecV3_get_pointer "get_pointer" (c_VecV3 *v, size_t k)
-    void c_IVecV3_sort "sort" (c_VecIterV3 pos0, c_VecIterV3 pos1, c_SmallerAddrV3 comp)
 
     void c_compactifyV3 "compactify_set"(c_VecV3 *v)
     bint c_get_countV3 "get_count_set"(c_VecV3 *v,
@@ -506,7 +339,7 @@ cdef class SparseVectorI:
     cpdef double norm_lp(self, double p)
 cdef class SparseVectorsI:
     cdef object vecs
-    cdef c_VectorI weights
+    cdef vector[cython.int] weights
     cpdef SparseVectorI to_vec(self)
     cpdef add(self, SparseVectorI vec, int weight=*)
     cdef int _dotFull(self, const_int_ptr full_ptr)
@@ -591,7 +424,7 @@ cdef class SparseVectorF:
     cpdef double norm_lp(self, double p)
 cdef class SparseVectorsF:
     cdef object vecs
-    cdef c_VectorF weights
+    cdef vector[cython.float] weights
     cpdef SparseVectorF to_vec(self)
     cpdef add(self, SparseVectorF vec, float weight=*)
     cdef float _dotFull(self, const_float_ptr full_ptr)
@@ -676,7 +509,7 @@ cdef class SparseVectorD:
     cpdef double norm_lp(self, double p)
 cdef class SparseVectorsD:
     cdef object vecs
-    cdef c_VectorD weights
+    cdef vector[cython.double] weights
     cpdef SparseVectorD to_vec(self)
     cpdef add(self, SparseVectorD vec, double weight=*)
     cdef double _dotFull(self, const_double_ptr full_ptr)

@@ -1,9 +1,9 @@
 from lurrn.learn import AdaGrad, FileModel, SgdMomentum, AvgMira
 from lurrn.feature import FeatureHasher
-from lurrn.alphabet import CPPAlphabet, CPPUniAlphabet
+from lurrn.alphabet import StringAlphabet
 from lurrn.sparsmat import SparseVectorsD, SparseVectorD
 
-__all__ = ['FeatureHasher', 'CPPAlphabet', 'CPPUniAlphabet',
+__all__ = ['FeatureHasher', 'StringAlphabet',
            'SparseVectorD', 'SparseVectorsD',
            'all_learners', 'create_learner', 'load_weights']
 

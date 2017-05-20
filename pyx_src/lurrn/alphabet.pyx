@@ -20,10 +20,10 @@ cdef class AbstractAlphabet:
         w=f.write
         if fmt in [0,1]:
             if fmt==1:
-                w('%d\n'%(n,))
+                w(b'%d\n'%(n,))
             for i from 0<=i<n:
-                w(self.num2sym(i))
-                w('\n')
+                w(bytes(self.num2sym(i)))
+                w(b'\n')
     def fromfile(self,f,fmt=1):
         cdef int i, n
         rl=f.readline
@@ -32,13 +32,13 @@ cdef class AbstractAlphabet:
                 s=rl()
                 if s=='':
                     break
-                s=s.rstrip('\n')
+                s=s.rstrip(b'\n')
                 self.sym2num(s)
         elif fmt==1:
-            n=int(rl().rstrip('\n'))
+            n=int(rl().rstrip(b'\n'))
             for i from 0<=i<n:
                 s=rl()
-                s=s.rstrip('\n')
+                s=s.rstrip(b'\n')
                 self.sym2num(s)
 
 cdef class Alphabet_iter:
@@ -52,7 +52,7 @@ cdef class Alphabet_iter:
             self.pos+=1
             return res
 
-cdef class CPPUniAlphabet
+cdef class StringAlphabet
 
 cdef class Alphabet_UTF8_iter(Alphabet_iter):
     def __init__(self,alph):
@@ -151,55 +151,36 @@ cdef class PythonAlphabet(AbstractAlphabet):
             self.mapping[w]=i
         self.growing=False
 
-cdef class CPPAlphabet(AbstractAlphabet):
+cdef class StringAlphabet(AbstractAlphabet):
+    """
+    provides an Alphabet that can store unicode and bytes objects,
+    where unicode objects are stored as (by default) UTF-8 encoded strings
+    """
+    def __cinit__(self, want_utf8=True):
+        self.use_utf8=want_utf8
     property growing:
         def __get__(self):
             return self.map.growing
         def __set__(self,val):
             self.map.growing=val
-    def __cinit__(self):
-        placement_new_CPPAlphabet(&self.map)
-    cdef int size(self):
-        return self.map.size()
     cdef int sym2num(self,const_char_ptr sym):
         return self.map.sym2num(sym)
     cdef const_char_ptr num2sym(self, int num):
         return self.map.num2sym(num)
     cpdef remap(self, numpy.ndarray filt_array):
         cdef int i,n
-        cdef CPPAlphabet alph2=CPPAlphabet()
+        cdef StringAlphabet alph2=StringAlphabet()
         n=self.map.size()
         for i from 0<=i<n:
             if filt_array[i]:
                 alph2.map.sym2num(self.map.num2sym(i))
         alph2.map.growing=self.map.growing
         return alph2
+    cdef int size(self):
+        return self.map.size()
     def __len__(self):
         return self.map.size()
-    def __iter__(self):
-        return Alphabet_iter(self)
-    def __getitem__(self,sym):
-        cdef int res=self.sym2num(sym)
-        if res==-1:
-            raise KeyError
-        else:
-            return res
-    def __dealloc__(self):
-        self.map.call_destructor()
 
-cdef class CPPUniAlphabet(CPPAlphabet):
-    def __cinit__(self, bint want_utf8=False):
-        self.use_utf8=want_utf8
-        placement_new_CPPAlphabet(&self.map)
-    cpdef remap(self, numpy.ndarray filt_array):
-        cdef int i,n
-        cdef CPPUniAlphabet alph2=CPPUniAlphabet()
-        n=self.map.size()
-        for i from 0<=i<n:
-            if filt_array[i]:
-                alph2.map.sym2num(self.map.num2sym(i))
-        alph2.map.growing=self.map.growing
-        return alph2
     def get_sym_unicode(self, int num):
         cdef const_char_ptr res=self.num2sym(num)
         if res is NULL:
@@ -261,10 +242,10 @@ cdef class CPPUniAlphabet(CPPAlphabet):
         w=f.write
         if fmt in [0,1]:
             if fmt==1:
-                w('%d\n'%(n,))
+                w(b'%d\n'%(n,))
             for i from 0<=i<n:
                 w(self.get_sym_unicode(i).encode('UTF-8'))
-                w('\n')
+                w(b'\n')
     def fromfile_utf8(self,f,fmt=1):
         cdef int i, n
         rl=f.readline
@@ -276,12 +257,12 @@ cdef class CPPUniAlphabet(CPPAlphabet):
                 s=rl()
                 if s=='':
                     break
-                s=s.rstrip('\n')
+                s=s.rstrip(b'\n')
                 self[s.decode('UTF-8')]
         elif fmt==1:
             n=int(rl().rstrip('\n'))
             for i from 0<=i<n:
                 s=rl()
-                s=s.rstrip('\n')
+                s=s.rstrip(b'\n')
                 self[s.decode('UTF-8')]
 

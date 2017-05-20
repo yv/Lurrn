@@ -320,8 +320,8 @@ cdef class Multipart:
                 'trees':[x.as_json() for x in self.trees]}
 
 cdef class FCombo:
-    cdef public alphabet.CPPUniAlphabet dict
-    cdef public alphabet.CPPUniAlphabet dict_aux
+    cdef public alphabet.StringAlphabet dict
+    cdef public alphabet.StringAlphabet dict_aux
     cdef public object escaped_words
     cdef public object codec
     cdef public object encoding
@@ -329,11 +329,11 @@ cdef class FCombo:
     cdef public double norm_p
     cdef int bias_item
     cdef int n
-    def __init__(self,n,mydict=None,bias_item=None, want_utf8=False,
+    def __init__(self,n,mydict=None,bias_item=None, want_utf8=True,
                  scale=1.0, norm_p=0.0):
         self.n=n
         if mydict is None:
-            self.dict=alphabet.CPPUniAlphabet(want_utf8)
+            self.dict=alphabet.StringAlphabet(want_utf8)
         else:
             self.dict=mydict
         if bias_item is None:
@@ -409,7 +409,7 @@ cdef class FCombo:
             parts=[FeatureList(flist)]
         vecs=[]
         if self.dict_aux is None:
-            self.dict_aux=alphabet.CPPUniAlphabet(self.dict.use_utf8)
+            self.dict_aux=alphabet.StringAlphabet(self.dict.use_utf8)
         for lst in parts:
             a=sparsmat.VecD1()
             self.mkvec1(lst,a)
@@ -550,8 +550,8 @@ cdef class FCombo:
             self.bias_item=new_dict[self.dict.words[self.bias_item]]
         self.dict=new_dict
     def load_weights(self,f):
-        cdef alphabet.CPPUniAlphabet mydict
-        mydict=alphabet.CPPUniAlphabet()
+        cdef alphabet.StringAlphabet mydict
+        mydict=alphabet.StringAlphabet()
         ws=[]
         for l in f:
             line=l.strip().split()
@@ -637,11 +637,11 @@ cdef class BloomFMap:
     '''
     cdef public CountingBloomFilter bloom
     cdef public int min_count
-    cdef public alphabet.CPPUniAlphabet dict
+    cdef public alphabet.StringAlphabet dict
     def __init__(self):
         self.bloom = CountingBloomFilter()
         self.min_count = 3
-        self.dict = alphabet.CPPUniAlphabet()
+        self.dict = alphabet.StringAlphabet()
     def __call__(self, lst):
         result = sparsmat.VecD1()
         for s in lst:

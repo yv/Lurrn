@@ -557,7 +557,8 @@ cdef class Vec{{T}}{{N}}:
         self.is_compact=True
     cdef void compactify(self):
         cdef c_SmallerAddr{{T}}{{N}} comp
-        c_IVec{{T}}{{N}}_sort(self.vec.begin(),self.vec.end(),comp)
+        sort[c_VecIter{{T}}{{N}}, c_SmallerAddr{{T}}{{N}}]( 
+            self.vec.begin(), self.vec.end(), comp)
         c_compactify{{T}}{{N}}(&self.vec)
         self.is_compact=True
     cdef void ensure_compact(self):
@@ -681,7 +682,7 @@ cdef class Vec{{T}}{{N}}:
     def tofile(self, f):
         cdef long i, n, k, k_max
         n=self.get_size()
-        f.write('{{T}}{{N}} %d\n'%(n,))
+        f.write(b'{{T}}{{N}} %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
             s=PyBytes_FromStringAndSize(<char *>c_Vec{{T}}{{N}}_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItem{{T}}{{N}}))
@@ -693,7 +694,7 @@ cdef class Vec{{T}}{{N}}:
     def fromfile(self, f):
         cdef long i, n
         line=f.readline().strip().split()
-        assert line[0]=='{{T}}{{N}}'
+        assert line[0] == b'{{T}}{{N}}'
         n=long(line[1])
         self.clear()
         self.vec.resize(n)
@@ -781,9 +782,6 @@ cdef class Vec{{T}}{{N}}:
         pass
     def __repr__(self):
         return 'Vec{{T}}{{N}}(%s)'%(str(list(self)),)
-    def __dealloc__(self):
-        # need to call destructor explicitly
-        self.vec.cxx_destructor()
 
 cdef class IVec{{T}}{{N}}_iter:
     cdef Vec{{T}}{{N}} vec
@@ -1462,7 +1460,11 @@ cdef class SparseVector{{T}}:
         cdef unsigned int i
         ss=[]
         for i from 0<=i<self.my_len:
+{%- if T in ['D', 'F'] %}
+            ss.append('(%d,%.5g)'%(self.idx_ptr[i],self.vals_ptr[i]))
+{%- else %}
             ss.append('(%d,%s)'%(self.idx_ptr[i],self.vals_ptr[i]))
+{%- endif %}
         return 'SparseVector{{T}}([%s])'%(','.join(ss))
     def __reduce_ex__(self,protocol):
         if protocol==0:

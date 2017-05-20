@@ -1459,7 +1459,8 @@ cdef class VecI1:
         self.is_compact=True
     cdef void compactify(self):
         cdef c_SmallerAddrI1 comp
-        c_IVecI1_sort(self.vec.begin(),self.vec.end(),comp)
+        sort[c_VecIterI1, c_SmallerAddrI1]( 
+            self.vec.begin(), self.vec.end(), comp)
         c_compactifyI1(&self.vec)
         self.is_compact=True
     cdef void ensure_compact(self):
@@ -1543,7 +1544,7 @@ cdef class VecI1:
     def tofile(self, f):
         cdef long i, n, k, k_max
         n=self.get_size()
-        f.write('I1 %d\n'%(n,))
+        f.write(b'I1 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
             s=PyBytes_FromStringAndSize(<char *>c_VecI1_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemI1))
@@ -1555,7 +1556,7 @@ cdef class VecI1:
     def fromfile(self, f):
         cdef long i, n
         line=f.readline().strip().split()
-        assert line[0]=='I1'
+        assert line[0] == b'I1'
         n=long(line[1])
         self.clear()
         self.vec.resize(n)
@@ -1626,9 +1627,6 @@ cdef class VecI1:
         pass
     def __repr__(self):
         return 'VecI1(%s)'%(str(list(self)),)
-    def __dealloc__(self):
-        # need to call destructor explicitly
-        self.vec.cxx_destructor()
 
 cdef class IVecI1_iter:
     cdef VecI1 vec
@@ -1722,7 +1720,8 @@ cdef class VecI2:
         self.is_compact=True
     cdef void compactify(self):
         cdef c_SmallerAddrI2 comp
-        c_IVecI2_sort(self.vec.begin(),self.vec.end(),comp)
+        sort[c_VecIterI2, c_SmallerAddrI2]( 
+            self.vec.begin(), self.vec.end(), comp)
         c_compactifyI2(&self.vec)
         self.is_compact=True
     cdef void ensure_compact(self):
@@ -1795,7 +1794,7 @@ cdef class VecI2:
     def tofile(self, f):
         cdef long i, n, k, k_max
         n=self.get_size()
-        f.write('I2 %d\n'%(n,))
+        f.write(b'I2 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
             s=PyBytes_FromStringAndSize(<char *>c_VecI2_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemI2))
@@ -1807,7 +1806,7 @@ cdef class VecI2:
     def fromfile(self, f):
         cdef long i, n
         line=f.readline().strip().split()
-        assert line[0]=='I2'
+        assert line[0] == b'I2'
         n=long(line[1])
         self.clear()
         self.vec.resize(n)
@@ -1878,9 +1877,6 @@ cdef class VecI2:
         pass
     def __repr__(self):
         return 'VecI2(%s)'%(str(list(self)),)
-    def __dealloc__(self):
-        # need to call destructor explicitly
-        self.vec.cxx_destructor()
 
 cdef class IVecI2_iter:
     cdef VecI2 vec
@@ -1979,7 +1975,8 @@ cdef class VecI3:
         self.is_compact=True
     cdef void compactify(self):
         cdef c_SmallerAddrI3 comp
-        c_IVecI3_sort(self.vec.begin(),self.vec.end(),comp)
+        sort[c_VecIterI3, c_SmallerAddrI3]( 
+            self.vec.begin(), self.vec.end(), comp)
         c_compactifyI3(&self.vec)
         self.is_compact=True
     cdef void ensure_compact(self):
@@ -2047,7 +2044,7 @@ cdef class VecI3:
     def tofile(self, f):
         cdef long i, n, k, k_max
         n=self.get_size()
-        f.write('I3 %d\n'%(n,))
+        f.write(b'I3 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
             s=PyBytes_FromStringAndSize(<char *>c_VecI3_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemI3))
@@ -2059,7 +2056,7 @@ cdef class VecI3:
     def fromfile(self, f):
         cdef long i, n
         line=f.readline().strip().split()
-        assert line[0]=='I3'
+        assert line[0] == b'I3'
         n=long(line[1])
         self.clear()
         self.vec.resize(n)
@@ -2130,9 +2127,6 @@ cdef class VecI3:
         pass
     def __repr__(self):
         return 'VecI3(%s)'%(str(list(self)),)
-    def __dealloc__(self):
-        # need to call destructor explicitly
-        self.vec.cxx_destructor()
 
 cdef class IVecI3_iter:
     cdef VecI3 vec
@@ -2943,7 +2937,8 @@ cdef class VecF1:
         self.is_compact=True
     cdef void compactify(self):
         cdef c_SmallerAddrF1 comp
-        c_IVecF1_sort(self.vec.begin(),self.vec.end(),comp)
+        sort[c_VecIterF1, c_SmallerAddrF1]( 
+            self.vec.begin(), self.vec.end(), comp)
         c_compactifyF1(&self.vec)
         self.is_compact=True
     cdef void ensure_compact(self):
@@ -3027,7 +3022,7 @@ cdef class VecF1:
     def tofile(self, f):
         cdef long i, n, k, k_max
         n=self.get_size()
-        f.write('F1 %d\n'%(n,))
+        f.write(b'F1 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
             s=PyBytes_FromStringAndSize(<char *>c_VecF1_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemF1))
@@ -3039,7 +3034,7 @@ cdef class VecF1:
     def fromfile(self, f):
         cdef long i, n
         line=f.readline().strip().split()
-        assert line[0]=='F1'
+        assert line[0] == b'F1'
         n=long(line[1])
         self.clear()
         self.vec.resize(n)
@@ -3110,9 +3105,6 @@ cdef class VecF1:
         pass
     def __repr__(self):
         return 'VecF1(%s)'%(str(list(self)),)
-    def __dealloc__(self):
-        # need to call destructor explicitly
-        self.vec.cxx_destructor()
 
 cdef class IVecF1_iter:
     cdef VecF1 vec
@@ -3206,7 +3198,8 @@ cdef class VecF2:
         self.is_compact=True
     cdef void compactify(self):
         cdef c_SmallerAddrF2 comp
-        c_IVecF2_sort(self.vec.begin(),self.vec.end(),comp)
+        sort[c_VecIterF2, c_SmallerAddrF2]( 
+            self.vec.begin(), self.vec.end(), comp)
         c_compactifyF2(&self.vec)
         self.is_compact=True
     cdef void ensure_compact(self):
@@ -3279,7 +3272,7 @@ cdef class VecF2:
     def tofile(self, f):
         cdef long i, n, k, k_max
         n=self.get_size()
-        f.write('F2 %d\n'%(n,))
+        f.write(b'F2 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
             s=PyBytes_FromStringAndSize(<char *>c_VecF2_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemF2))
@@ -3291,7 +3284,7 @@ cdef class VecF2:
     def fromfile(self, f):
         cdef long i, n
         line=f.readline().strip().split()
-        assert line[0]=='F2'
+        assert line[0] == b'F2'
         n=long(line[1])
         self.clear()
         self.vec.resize(n)
@@ -3362,9 +3355,6 @@ cdef class VecF2:
         pass
     def __repr__(self):
         return 'VecF2(%s)'%(str(list(self)),)
-    def __dealloc__(self):
-        # need to call destructor explicitly
-        self.vec.cxx_destructor()
 
 cdef class IVecF2_iter:
     cdef VecF2 vec
@@ -3463,7 +3453,8 @@ cdef class VecF3:
         self.is_compact=True
     cdef void compactify(self):
         cdef c_SmallerAddrF3 comp
-        c_IVecF3_sort(self.vec.begin(),self.vec.end(),comp)
+        sort[c_VecIterF3, c_SmallerAddrF3]( 
+            self.vec.begin(), self.vec.end(), comp)
         c_compactifyF3(&self.vec)
         self.is_compact=True
     cdef void ensure_compact(self):
@@ -3531,7 +3522,7 @@ cdef class VecF3:
     def tofile(self, f):
         cdef long i, n, k, k_max
         n=self.get_size()
-        f.write('F3 %d\n'%(n,))
+        f.write(b'F3 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
             s=PyBytes_FromStringAndSize(<char *>c_VecF3_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemF3))
@@ -3543,7 +3534,7 @@ cdef class VecF3:
     def fromfile(self, f):
         cdef long i, n
         line=f.readline().strip().split()
-        assert line[0]=='F3'
+        assert line[0] == b'F3'
         n=long(line[1])
         self.clear()
         self.vec.resize(n)
@@ -3614,9 +3605,6 @@ cdef class VecF3:
         pass
     def __repr__(self):
         return 'VecF3(%s)'%(str(list(self)),)
-    def __dealloc__(self):
-        # need to call destructor explicitly
-        self.vec.cxx_destructor()
 
 cdef class IVecF3_iter:
     cdef VecF3 vec
@@ -4283,7 +4271,7 @@ cdef class SparseVectorF:
         cdef unsigned int i
         ss=[]
         for i from 0<=i<self.my_len:
-            ss.append('(%d,%s)'%(self.idx_ptr[i],self.vals_ptr[i]))
+            ss.append('(%d,%.5g)'%(self.idx_ptr[i],self.vals_ptr[i]))
         return 'SparseVectorF([%s])'%(','.join(ss))
     def __reduce_ex__(self,protocol):
         if protocol==0:
@@ -4427,7 +4415,8 @@ cdef class VecD1:
         self.is_compact=True
     cdef void compactify(self):
         cdef c_SmallerAddrD1 comp
-        c_IVecD1_sort(self.vec.begin(),self.vec.end(),comp)
+        sort[c_VecIterD1, c_SmallerAddrD1]( 
+            self.vec.begin(), self.vec.end(), comp)
         c_compactifyD1(&self.vec)
         self.is_compact=True
     cdef void ensure_compact(self):
@@ -4511,7 +4500,7 @@ cdef class VecD1:
     def tofile(self, f):
         cdef long i, n, k, k_max
         n=self.get_size()
-        f.write('D1 %d\n'%(n,))
+        f.write(b'D1 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
             s=PyBytes_FromStringAndSize(<char *>c_VecD1_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemD1))
@@ -4523,7 +4512,7 @@ cdef class VecD1:
     def fromfile(self, f):
         cdef long i, n
         line=f.readline().strip().split()
-        assert line[0]=='D1'
+        assert line[0] == b'D1'
         n=long(line[1])
         self.clear()
         self.vec.resize(n)
@@ -4594,9 +4583,6 @@ cdef class VecD1:
         pass
     def __repr__(self):
         return 'VecD1(%s)'%(str(list(self)),)
-    def __dealloc__(self):
-        # need to call destructor explicitly
-        self.vec.cxx_destructor()
 
 cdef class IVecD1_iter:
     cdef VecD1 vec
@@ -4690,7 +4676,8 @@ cdef class VecD2:
         self.is_compact=True
     cdef void compactify(self):
         cdef c_SmallerAddrD2 comp
-        c_IVecD2_sort(self.vec.begin(),self.vec.end(),comp)
+        sort[c_VecIterD2, c_SmallerAddrD2]( 
+            self.vec.begin(), self.vec.end(), comp)
         c_compactifyD2(&self.vec)
         self.is_compact=True
     cdef void ensure_compact(self):
@@ -4763,7 +4750,7 @@ cdef class VecD2:
     def tofile(self, f):
         cdef long i, n, k, k_max
         n=self.get_size()
-        f.write('D2 %d\n'%(n,))
+        f.write(b'D2 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
             s=PyBytes_FromStringAndSize(<char *>c_VecD2_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemD2))
@@ -4775,7 +4762,7 @@ cdef class VecD2:
     def fromfile(self, f):
         cdef long i, n
         line=f.readline().strip().split()
-        assert line[0]=='D2'
+        assert line[0] == b'D2'
         n=long(line[1])
         self.clear()
         self.vec.resize(n)
@@ -4846,9 +4833,6 @@ cdef class VecD2:
         pass
     def __repr__(self):
         return 'VecD2(%s)'%(str(list(self)),)
-    def __dealloc__(self):
-        # need to call destructor explicitly
-        self.vec.cxx_destructor()
 
 cdef class IVecD2_iter:
     cdef VecD2 vec
@@ -4947,7 +4931,8 @@ cdef class VecD3:
         self.is_compact=True
     cdef void compactify(self):
         cdef c_SmallerAddrD3 comp
-        c_IVecD3_sort(self.vec.begin(),self.vec.end(),comp)
+        sort[c_VecIterD3, c_SmallerAddrD3]( 
+            self.vec.begin(), self.vec.end(), comp)
         c_compactifyD3(&self.vec)
         self.is_compact=True
     cdef void ensure_compact(self):
@@ -5015,7 +5000,7 @@ cdef class VecD3:
     def tofile(self, f):
         cdef long i, n, k, k_max
         n=self.get_size()
-        f.write('D3 %d\n'%(n,))
+        f.write(b'D3 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
             s=PyBytes_FromStringAndSize(<char *>c_VecD3_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemD3))
@@ -5027,7 +5012,7 @@ cdef class VecD3:
     def fromfile(self, f):
         cdef long i, n
         line=f.readline().strip().split()
-        assert line[0]=='D3'
+        assert line[0] == b'D3'
         n=long(line[1])
         self.clear()
         self.vec.resize(n)
@@ -5098,9 +5083,6 @@ cdef class VecD3:
         pass
     def __repr__(self):
         return 'VecD3(%s)'%(str(list(self)),)
-    def __dealloc__(self):
-        # need to call destructor explicitly
-        self.vec.cxx_destructor()
 
 cdef class IVecD3_iter:
     cdef VecD3 vec
@@ -5767,7 +5749,7 @@ cdef class SparseVectorD:
         cdef unsigned int i
         ss=[]
         for i from 0<=i<self.my_len:
-            ss.append('(%d,%s)'%(self.idx_ptr[i],self.vals_ptr[i]))
+            ss.append('(%d,%.5g)'%(self.idx_ptr[i],self.vals_ptr[i]))
         return 'SparseVectorD([%s])'%(','.join(ss))
     def __reduce_ex__(self,protocol):
         if protocol==0:
@@ -5911,7 +5893,8 @@ cdef class VecV1:
         self.is_compact=True
     cdef void compactify(self):
         cdef c_SmallerAddrV1 comp
-        c_IVecV1_sort(self.vec.begin(),self.vec.end(),comp)
+        sort[c_VecIterV1, c_SmallerAddrV1]( 
+            self.vec.begin(), self.vec.end(), comp)
         c_compactifyV1(&self.vec)
         self.is_compact=True
     cdef void ensure_compact(self):
@@ -5983,7 +5966,7 @@ cdef class VecV1:
     def tofile(self, f):
         cdef long i, n, k, k_max
         n=self.get_size()
-        f.write('V1 %d\n'%(n,))
+        f.write(b'V1 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
             s=PyBytes_FromStringAndSize(<char *>c_VecV1_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemV1))
@@ -5995,7 +5978,7 @@ cdef class VecV1:
     def fromfile(self, f):
         cdef long i, n
         line=f.readline().strip().split()
-        assert line[0]=='V1'
+        assert line[0] == b'V1'
         n=long(line[1])
         self.clear()
         self.vec.resize(n)
@@ -6065,9 +6048,6 @@ cdef class VecV1:
         pass
     def __repr__(self):
         return 'VecV1(%s)'%(str(list(self)),)
-    def __dealloc__(self):
-        # need to call destructor explicitly
-        self.vec.cxx_destructor()
 
 cdef class IVecV1_iter:
     cdef VecV1 vec
@@ -6160,7 +6140,8 @@ cdef class VecV2:
         self.is_compact=True
     cdef void compactify(self):
         cdef c_SmallerAddrV2 comp
-        c_IVecV2_sort(self.vec.begin(),self.vec.end(),comp)
+        sort[c_VecIterV2, c_SmallerAddrV2]( 
+            self.vec.begin(), self.vec.end(), comp)
         c_compactifyV2(&self.vec)
         self.is_compact=True
     cdef void ensure_compact(self):
@@ -6224,7 +6205,7 @@ cdef class VecV2:
     def tofile(self, f):
         cdef long i, n, k, k_max
         n=self.get_size()
-        f.write('V2 %d\n'%(n,))
+        f.write(b'V2 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
             s=PyBytes_FromStringAndSize(<char *>c_VecV2_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemV2))
@@ -6236,7 +6217,7 @@ cdef class VecV2:
     def fromfile(self, f):
         cdef long i, n
         line=f.readline().strip().split()
-        assert line[0]=='V2'
+        assert line[0] == b'V2'
         n=long(line[1])
         self.clear()
         self.vec.resize(n)
@@ -6307,9 +6288,6 @@ cdef class VecV2:
         pass
     def __repr__(self):
         return 'VecV2(%s)'%(str(list(self)),)
-    def __dealloc__(self):
-        # need to call destructor explicitly
-        self.vec.cxx_destructor()
 
 cdef class IVecV2_iter:
     cdef VecV2 vec
@@ -6403,7 +6381,8 @@ cdef class VecV3:
         self.is_compact=True
     cdef void compactify(self):
         cdef c_SmallerAddrV3 comp
-        c_IVecV3_sort(self.vec.begin(),self.vec.end(),comp)
+        sort[c_VecIterV3, c_SmallerAddrV3]( 
+            self.vec.begin(), self.vec.end(), comp)
         c_compactifyV3(&self.vec)
         self.is_compact=True
     cdef void ensure_compact(self):
@@ -6469,7 +6448,7 @@ cdef class VecV3:
     def tofile(self, f):
         cdef long i, n, k, k_max
         n=self.get_size()
-        f.write('V3 %d\n'%(n,))
+        f.write(b'V3 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
             s=PyBytes_FromStringAndSize(<char *>c_VecV3_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemV3))
@@ -6481,7 +6460,7 @@ cdef class VecV3:
     def fromfile(self, f):
         cdef long i, n
         line=f.readline().strip().split()
-        assert line[0]=='V3'
+        assert line[0] == b'V3'
         n=long(line[1])
         self.clear()
         self.vec.resize(n)
@@ -6552,9 +6531,6 @@ cdef class VecV3:
         pass
     def __repr__(self):
         return 'VecV3(%s)'%(str(list(self)),)
-    def __dealloc__(self):
-        # need to call destructor explicitly
-        self.vec.cxx_destructor()
 
 cdef class IVecV3_iter:
     cdef VecV3 vec

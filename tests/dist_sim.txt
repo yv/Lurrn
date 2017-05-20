@@ -19,29 +19,29 @@ The to_sparse() method converts the sparse vector to a different
 representation that is more static (and hopefully more efficient):
     >>> aa=a.to_sparse()
     >>> aa
-    SparseVectorD([(1,1.0),(2,1.0)])
+    SparseVectorD([(1,1),(2,1)])
     >>> bb=b.to_sparse()
 
 Sparse vectors can be added:
     >>> aa+bb
-    SparseVectorD([(1,2.0),(2,1.0),(3,1.0)])
+    SparseVectorD([(1,2),(2,1),(3,1)])
 
 addition should be commutative:
     >>> bb+aa
-    SparseVectorD([(1,2.0),(2,1.0),(3,1.0)])
+    SparseVectorD([(1,2),(2,1),(3,1)])
 
 Sparse vectors can be or-ed (taking the maximum of each column):
     >>> aa|bb
-    SparseVectorD([(1,1.0),(2,1.0),(3,1.0)])
+    SparseVectorD([(1,1),(2,1),(3,1)])
 
 or-ing should also be commutative:
     >>> bb|aa
-    SparseVectorD([(1,1.0),(2,1.0),(3,1.0)])
+    SparseVectorD([(1,1),(2,1),(3,1)])
 
 The scale method scales by some array
     >>> a_scale = numpy.array([5.0, 4.0, 3.0, 2.0, 1.0])
     >>> aa.scale_array(a_scale)
-    SparseVectorD([(1,4.0),(2,3.0)])
+    SparseVectorD([(1,4),(2,3)])
 
 The dotMatrix method computes a dense vector y=Ax with A dense, x sparse
     >>> a_mat = numpy.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]).T
@@ -57,10 +57,10 @@ Sparse vectors can be pickled and unpickled in both ASCII and binary formats
     ...  import pickle
     >>> s=pickle.dumps(aa)
     >>> pickle.loads(s)
-    SparseVectorD([(1,1.0),(2,1.0)])
+    SparseVectorD([(1,1),(2,1)])
     >>> s=pickle.dumps(aa,-1)
     >>> pickle.loads(s)
-    SparseVectorD([(1,1.0),(2,1.0)])
+    SparseVectorD([(1,1),(2,1)])
 
 You can convert a VecD2 to a sparse matrix and transform it to get MI values
     >>> a=VecD2()
@@ -75,16 +75,16 @@ You can convert a VecD2 to a sparse matrix and transform it to get MI values
     array([ 0.,  2.,  3.,  1.])
     >>> c=b.transform_mi()
     >>> list(c)
-    [SparseVectorD([]), SparseVectorD([(1,0.69314718056)]), SparseVectorD([(2,0.69314718056)]), SparseVectorD([(3,1.79175946923)])]
+    [SparseVectorD([]), SparseVectorD([(1,0.69315)]), SparseVectorD([(2,0.69315)]), SparseVectorD([(3,1.7918)])]
 
 You can scale or filter values using thresholds for each column
     >>> thr=numpy.array([1.0,0.7,1.0,1.0], dtype=numpy.float64)
     >>> d=c.apply_scaling(thr)
     >>> list(d)
-    [SparseVectorD([]), SparseVectorD([(1,0.990210257943)]), SparseVectorD([(2,0.69314718056)]), SparseVectorD([(3,1.0)])]
+    [SparseVectorD([]), SparseVectorD([(1,0.99021)]), SparseVectorD([(2,0.69315)]), SparseVectorD([(3,1)])]
     >>> d=c.apply_threshold(thr)
     >>> list(d)
-    [SparseVectorD([]), SparseVectorD([]), SparseVectorD([]), SparseVectorD([(3,1.0)])]
+    [SparseVectorD([]), SparseVectorD([]), SparseVectorD([]), SparseVectorD([(3,1)])]
 
 VecD2 instances can be remapped by providing an array of booleans:
     >>> wanted1=numpy.array([False,True,False,True])
@@ -111,11 +111,11 @@ You can add two vectors of the same type/dimensionality together:
 
 You can save tuple vectors to a file object with the .tofile(f) method and load it again
 with the .fromfile(f) method
-    >>> from cStringIO import StringIO
-    >>> f=StringIO()
+    >>> from io import BytesIO
+    >>> f=BytesIO()
     >>> d.tofile(f)
     >>> a.tofile(f)
-    >>> f.reset()
+    >>> _ = f.seek(0)
     >>> c2=VecD2()
     >>> c2.fromfile(f)
     >>> c2
@@ -185,7 +185,7 @@ SparseVec objects can be created from dense arrays
    >>> a2.from_dense(a1)
    3
    >>> a2
-   SparseVectorD([(2,5.0),(5,7.0),(9,2.0)])
+   SparseVectorD([(2,5),(5,7),(9,2)])
 
 Alphabet
 ========
@@ -194,7 +194,7 @@ CPPUniAlphabet is an alphabet instance that stores unicode values
 as 8-bit strings internally to save memory.
 
     >>> from lurrn import alphabet
-    >>> a1=alphabet.CPPUniAlphabet()
+    >>> a1=alphabet.StringAlphabet()
     >>> a1['foo']
     0
     >>> a1['bar']
@@ -203,15 +203,15 @@ as 8-bit strings internally to save memory.
     0
     >>> a1[u'fo\u00df']
     2
-    >>> list(a1)
-    [u'foo', u'bar', u'fo\xdf']
+    >>> list(a1) == [u'foo', u'bar', u'fo\xdf']
+    True
 
 You can write an alphabet to a file
-    >>> f=StringIO()
+    >>> f=BytesIO()
     >>> a1.tofile(f)
-    >>> a2=alphabet.CPPUniAlphabet()
-    >>> f.reset()
+    >>> a2=alphabet.StringAlphabet()
+    >>> _ = f.seek(0)
     >>> a2.fromfile(f)
-    >>> list(a2)
-    [u'foo', u'bar', u'fo\xdf']
+    >>> list(a2) == [u'foo', u'bar', u'fo\xdf']
+    True
 
