@@ -2,12 +2,15 @@
 #define CXX_ALPH_H
 #include <unordered_map>
 #include <vector>
-#include <obstack.h>
 #include <Python.h>
 
-//TODO: maybe increase chunk size
+#ifdef __APPLE__
+#include <malloc/malloc.h>
+#else
+#include <obstack.h>
 #define obstack_chunk_alloc PyMem_Malloc
 #define obstack_chunk_free PyMem_Free
+#endif
 
 struct eqstr {
   bool operator()(const char *s1,
@@ -34,15 +37,27 @@ typedef std::unordered_map<
 struct CPPAlphabet{
   t_dict dictionary;
   std::vector<const char *> words;
+#ifdef __APPLE__
+  malloc_zone_t *space;
+#else
   struct obstack space;
+#endif
   int growing;
   CPPAlphabet()
   {
+#ifdef __APPLE__
+    space = malloc_create_zone(2 << 20, 0);
+#else
     obstack_init(&space);
+#endif
     growing=1;
   }
   ~CPPAlphabet() {
+#ifdef __APPLE__
+    malloc_destroy_zone(space);
+#else
     obstack_free(&space,NULL);
+#endif
   }
   int size() { return words.size(); }
   int sym2num(const char *sym, bool add=true) {
@@ -50,7 +65,11 @@ struct CPPAlphabet{
     if (it==dictionary.end()) {
       if (growing && add) {
         int n=words.size();
+#ifdef __APPLE__
+	char *w=(char *)malloc_zone_malloc(space, strlen(sym)+1);
+#else
         char *w=(char *)obstack_alloc(&space,strlen(sym)+1);
+#endif
         strcpy(w,sym);
         words.push_back(w);
         dictionary[w]=n;
