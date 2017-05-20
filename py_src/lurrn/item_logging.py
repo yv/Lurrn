@@ -1,3 +1,4 @@
+from __future__ import print_function
 import sys
 import os
 from cStringIO import StringIO
@@ -20,7 +21,7 @@ def debug_on_error(tp, value, tb):
         original_hook(tp, value, tb)
     else:
         traceback.print_exception(tp, value, tb)
-        print
+        print()
         pdb.pm()
 
 original_hook = sys.excepthook
@@ -56,7 +57,7 @@ def add_log_item(topic, event, **kwargs):
         skipped[topic] = 0
     else:
         s_skipped = ''
-    print >>logfile, "%s %s %s%s" % (ctime(), topic, s, s_skipped)
+    print("%s %s %s%s" % (ctime(), topic, s, s_skipped), file=logfile)
     logfile.flush()
     if tm is not None:
         next_output[topic] = tm + rate_limits[topic]
@@ -64,9 +65,9 @@ def add_log_item(topic, event, **kwargs):
 def log_exception(exception_text, topic='ERROR'):
     if type(exception_text) == list:
         exception_text = ''.join(exception_text)
-    print >>logfile, "%s %s [[[exception"%(ctime(), topic)
-    print >>logfile, exception_text
-    print >>logfile, "]]]"
+    print("%s %s [[[exception"%(ctime(), topic), file=logfile)
+    print(exception_text, file=logfile)
+    print("]]]", file=logfile)
 
 def set_logfile(fname):
     global logfile
@@ -106,6 +107,6 @@ class LongLogEntry:
             skipped[topic] = 0
         else:
             s_skipped = ''
-        print >>logfile, "%s %s %s%s [[["%(ctime(), topic, self.s, s_skipped)
-        print >>logfile, self.stream.getvalue(),
-        print >>logfile, "]]]"
+        print("%s %s %s%s [[["%(ctime(), topic, self.s, s_skipped), file=logfile)
+        print(self.stream.getvalue(), end=' ', file=logfile)
+        print("]]]", file=logfile)

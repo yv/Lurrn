@@ -517,7 +517,7 @@ def csrFromBuffer(object buf):
     else:
         # hrm... this only works on 32bit machines
         # what's the Python equivalent of sizeof(int)???
-        tcode=PyString_FromStringAndSize(buffer+4,4)
+        tcode=PyBytes_FromStringAndSize(buffer+4,4)
         raise ValueError("wrong tcode "+tcode)
 
 def mmapCSR(f):
@@ -684,11 +684,11 @@ cdef class Vec{{T}}{{N}}:
         f.write('{{T}}{{N}} %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
-            s=PyString_FromStringAndSize(<char *>c_Vec{{T}}{{N}}_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItem{{T}}{{N}}))
+            s=PyBytes_FromStringAndSize(<char *>c_Vec{{T}}{{N}}_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItem{{T}}{{N}}))
             f.write(s)
             k+=CHUNK_SIZE
         if k<n:
-            s=PyString_FromStringAndSize(<char *>c_Vec{{T}}{{N}}_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItem{{T}}{{N}}))
+            s=PyBytes_FromStringAndSize(<char *>c_Vec{{T}}{{N}}_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItem{{T}}{{N}}))
             f.write(s)
     def fromfile(self, f):
         cdef long i, n
@@ -1469,8 +1469,8 @@ cdef class SparseVector{{T}}:
             # choose compatibility over performance.
             return (SparseVector{{T}},(list(self),),())
         else:
-            s_idx=PyString_FromStringAndSize(<char *>self.idx_ptr,self.my_len*sizeof(coordinate_t))
-            s_vals=PyString_FromStringAndSize(<char *>self.vals_ptr,self.my_len*sizeof({{tt}}))
+            s_idx=PyBytes_FromStringAndSize(<char *>self.idx_ptr,self.my_len*sizeof(coordinate_t))
+            s_vals=PyBytes_FromStringAndSize(<char *>self.vals_ptr,self.my_len*sizeof({{tt}}))
             return (SparseVector{{T}},(None,),(s_idx,s_vals))
     def __setstate__(self,state):
         cdef coordinate_t *p_idx
@@ -1615,8 +1615,8 @@ def run_test():
     mat2.print_csr()
     mat3=mat+mat2
     mat3.print_csr()
-    mat3.write_binary(file('/tmp/mat3','w'))
-    mat4=mmapCSR(file('/tmp/mat3'))
+    mat3.write_binary(open('/tmp/mat3','w'))
+    mat4=mmapCSR(open('/tmp/mat3'))
     mat4.print_csr()
     mat4=None
     mat5=mat3.transpose()

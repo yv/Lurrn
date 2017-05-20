@@ -5,7 +5,7 @@ cdef extern from "Python.h":
     int PyObject_AsReadBuffer(object obj, char **buffer, Py_ssize_t *buffer_len) except -1
     int PyObject_CheckReadBuffer(object o)
     int PyObject_AsWriteBuffer(object obj, char **buffer, Py_ssize_t *buffer_len) except -1
-    object PyString_FromStringAndSize(char *v, Py_ssize_t len)
+    object PyBytes_FromStringAndSize(char *v, Py_ssize_t len)
     void *PyMem_Malloc(int)
     void PyMem_Free(void *p)
 
@@ -34,17 +34,17 @@ cdef extern from "cxx_gram.h":
     struct c_CItemI1 "CountItem<1,int>":
         int *addr
         int item
-    struct c_VectorI "std::vector<int>":
+    cppclass c_VectorI "std::vector<int>":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
         void push_back(int item)
         int at(int pos)
         void cxx_destructor "~vector" ()
-    struct c_VecIterI1 "std::vector<CountItem<1,int> >::iterator"
+    cppclass c_VecIterI1 "std::vector<CountItem<1,int> >::iterator"
     struct c_SmallerAddrI1 "smallerAddr<1,int>":
         pass
-    struct c_VecI1 "std::vector<CountItem<1,int> >":
+    cppclass c_VecI1 "std::vector<CountItem<1,int> >":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
@@ -62,17 +62,17 @@ cdef extern from "cxx_gram.h":
     struct c_CItemI2 "CountItem<2,int>":
         int *addr
         int item
-    struct c_VectorI "std::vector<int>":
+    cppclass c_VectorI "std::vector<int>":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
         void push_back(int item)
         int at(int pos)
         void cxx_destructor "~vector" ()
-    struct c_VecIterI2 "std::vector<CountItem<2,int> >::iterator"
+    cppclass c_VecIterI2 "std::vector<CountItem<2,int> >::iterator"
     struct c_SmallerAddrI2 "smallerAddr<2,int>":
         pass
-    struct c_VecI2 "std::vector<CountItem<2,int> >":
+    cppclass c_VecI2 "std::vector<CountItem<2,int> >":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
@@ -90,17 +90,17 @@ cdef extern from "cxx_gram.h":
     struct c_CItemI3 "CountItem<3,int>":
         int *addr
         int item
-    struct c_VectorI "std::vector<int>":
+    cppclass c_VectorI "std::vector<int>":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
         void push_back(int item)
         int at(int pos)
         void cxx_destructor "~vector" ()
-    struct c_VecIterI3 "std::vector<CountItem<3,int> >::iterator"
+    cppclass c_VecIterI3 "std::vector<CountItem<3,int> >::iterator"
     struct c_SmallerAddrI3 "smallerAddr<3,int>":
         pass
-    struct c_VecI3 "std::vector<CountItem<3,int> >":
+    cppclass c_VecI3 "std::vector<CountItem<3,int> >":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
@@ -136,17 +136,17 @@ cdef extern from "cxx_gram.h":
     struct c_CItemF1 "CountItem<1,float>":
         int *addr
         float item
-    struct c_VectorF "std::vector<float>":
+    cppclass c_VectorF "std::vector<float>":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
         void push_back(float item)
         float at(int pos)
         void cxx_destructor "~vector" ()
-    struct c_VecIterF1 "std::vector<CountItem<1,float> >::iterator"
+    cppclass c_VecIterF1 "std::vector<CountItem<1,float> >::iterator"
     struct c_SmallerAddrF1 "smallerAddr<1,float>":
         pass
-    struct c_VecF1 "std::vector<CountItem<1,float> >":
+    cppclass c_VecF1 "std::vector<CountItem<1,float> >":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
@@ -164,17 +164,17 @@ cdef extern from "cxx_gram.h":
     struct c_CItemF2 "CountItem<2,float>":
         int *addr
         float item
-    struct c_VectorF "std::vector<float>":
+    cppclass c_VectorF "std::vector<float>":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
         void push_back(float item)
         float at(int pos)
         void cxx_destructor "~vector" ()
-    struct c_VecIterF2 "std::vector<CountItem<2,float> >::iterator"
+    cppclass c_VecIterF2 "std::vector<CountItem<2,float> >::iterator"
     struct c_SmallerAddrF2 "smallerAddr<2,float>":
         pass
-    struct c_VecF2 "std::vector<CountItem<2,float> >":
+    cppclass c_VecF2 "std::vector<CountItem<2,float> >":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
@@ -192,17 +192,17 @@ cdef extern from "cxx_gram.h":
     struct c_CItemF3 "CountItem<3,float>":
         int *addr
         float item
-    struct c_VectorF "std::vector<float>":
+    cppclass c_VectorF "std::vector<float>":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
         void push_back(float item)
         float at(int pos)
         void cxx_destructor "~vector" ()
-    struct c_VecIterF3 "std::vector<CountItem<3,float> >::iterator"
+    cppclass c_VecIterF3 "std::vector<CountItem<3,float> >::iterator"
     struct c_SmallerAddrF3 "smallerAddr<3,float>":
         pass
-    struct c_VecF3 "std::vector<CountItem<3,float> >":
+    cppclass c_VecF3 "std::vector<CountItem<3,float> >":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
@@ -238,17 +238,17 @@ cdef extern from "cxx_gram.h":
     struct c_CItemD1 "CountItem<1,double>":
         int *addr
         double item
-    struct c_VectorD "std::vector<double>":
+    cppclass c_VectorD "std::vector<double>":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
         void push_back(double item)
         double at(int pos)
         void cxx_destructor "~vector" ()
-    struct c_VecIterD1 "std::vector<CountItem<1,double> >::iterator"
+    cppclass c_VecIterD1 "std::vector<CountItem<1,double> >::iterator"
     struct c_SmallerAddrD1 "smallerAddr<1,double>":
         pass
-    struct c_VecD1 "std::vector<CountItem<1,double> >":
+    cppclass c_VecD1 "std::vector<CountItem<1,double> >":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
@@ -266,17 +266,17 @@ cdef extern from "cxx_gram.h":
     struct c_CItemD2 "CountItem<2,double>":
         int *addr
         double item
-    struct c_VectorD "std::vector<double>":
+    cppclass c_VectorD "std::vector<double>":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
         void push_back(double item)
         double at(int pos)
         void cxx_destructor "~vector" ()
-    struct c_VecIterD2 "std::vector<CountItem<2,double> >::iterator"
+    cppclass c_VecIterD2 "std::vector<CountItem<2,double> >::iterator"
     struct c_SmallerAddrD2 "smallerAddr<2,double>":
         pass
-    struct c_VecD2 "std::vector<CountItem<2,double> >":
+    cppclass c_VecD2 "std::vector<CountItem<2,double> >":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
@@ -294,17 +294,17 @@ cdef extern from "cxx_gram.h":
     struct c_CItemD3 "CountItem<3,double>":
         int *addr
         double item
-    struct c_VectorD "std::vector<double>":
+    cppclass c_VectorD "std::vector<double>":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
         void push_back(double item)
         double at(int pos)
         void cxx_destructor "~vector" ()
-    struct c_VecIterD3 "std::vector<CountItem<3,double> >::iterator"
+    cppclass c_VecIterD3 "std::vector<CountItem<3,double> >::iterator"
     struct c_SmallerAddrD3 "smallerAddr<3,double>":
         pass
-    struct c_VecD3 "std::vector<CountItem<3,double> >":
+    cppclass c_VecD3 "std::vector<CountItem<3,double> >":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
@@ -339,10 +339,10 @@ cdef extern from "cxx_gram.h":
     ctypedef void *const_void_ptr "const void *"
     struct c_CItemV1 "CountItem<1,void>":
         int *addr
-    struct c_VecIterV1 "std::vector<CountItem<1,void> >::iterator"
+    cppclass c_VecIterV1 "std::vector<CountItem<1,void> >::iterator"
     struct c_SmallerAddrV1 "smallerAddr<1,void>":
         pass
-    struct c_VecV1 "std::vector<CountItem<1,void> >":
+    cppclass c_VecV1 "std::vector<CountItem<1,void> >":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
@@ -360,10 +360,10 @@ cdef extern from "cxx_gram.h":
 
     struct c_CItemV2 "CountItem<2,void>":
         int *addr
-    struct c_VecIterV2 "std::vector<CountItem<2,void> >::iterator"
+    cppclass c_VecIterV2 "std::vector<CountItem<2,void> >::iterator"
     struct c_SmallerAddrV2 "smallerAddr<2,void>":
         pass
-    struct c_VecV2 "std::vector<CountItem<2,void> >":
+    cppclass c_VecV2 "std::vector<CountItem<2,void> >":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
@@ -381,10 +381,10 @@ cdef extern from "cxx_gram.h":
 
     struct c_CItemV3 "CountItem<3,void>":
         int *addr
-    struct c_VecIterV3 "std::vector<CountItem<3,void> >::iterator"
+    cppclass c_VecIterV3 "std::vector<CountItem<3,void> >::iterator"
     struct c_SmallerAddrV3 "smallerAddr<3,void>":
         pass
-    struct c_VecV3 "std::vector<CountItem<3,void> >":
+    cppclass c_VecV3 "std::vector<CountItem<3,void> >":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)

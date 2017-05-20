@@ -1424,7 +1424,7 @@ def csrFromBuffer(object buf):
     else:
         # hrm... this only works on 32bit machines
         # what's the Python equivalent of sizeof(int)???
-        tcode=PyString_FromStringAndSize(buffer+4,4)
+        tcode=PyBytes_FromStringAndSize(buffer+4,4)
         raise ValueError("wrong tcode "+tcode)
 
 def mmapCSR(f):
@@ -1546,11 +1546,11 @@ cdef class VecI1:
         f.write('I1 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
-            s=PyString_FromStringAndSize(<char *>c_VecI1_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemI1))
+            s=PyBytes_FromStringAndSize(<char *>c_VecI1_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemI1))
             f.write(s)
             k+=CHUNK_SIZE
         if k<n:
-            s=PyString_FromStringAndSize(<char *>c_VecI1_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemI1))
+            s=PyBytes_FromStringAndSize(<char *>c_VecI1_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemI1))
             f.write(s)
     def fromfile(self, f):
         cdef long i, n
@@ -1798,11 +1798,11 @@ cdef class VecI2:
         f.write('I2 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
-            s=PyString_FromStringAndSize(<char *>c_VecI2_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemI2))
+            s=PyBytes_FromStringAndSize(<char *>c_VecI2_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemI2))
             f.write(s)
             k+=CHUNK_SIZE
         if k<n:
-            s=PyString_FromStringAndSize(<char *>c_VecI2_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemI2))
+            s=PyBytes_FromStringAndSize(<char *>c_VecI2_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemI2))
             f.write(s)
     def fromfile(self, f):
         cdef long i, n
@@ -2050,11 +2050,11 @@ cdef class VecI3:
         f.write('I3 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
-            s=PyString_FromStringAndSize(<char *>c_VecI3_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemI3))
+            s=PyBytes_FromStringAndSize(<char *>c_VecI3_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemI3))
             f.write(s)
             k+=CHUNK_SIZE
         if k<n:
-            s=PyString_FromStringAndSize(<char *>c_VecI3_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemI3))
+            s=PyBytes_FromStringAndSize(<char *>c_VecI3_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemI3))
             f.write(s)
     def fromfile(self, f):
         cdef long i, n
@@ -2806,8 +2806,8 @@ cdef class SparseVectorI:
             # choose compatibility over performance.
             return (SparseVectorI,(list(self),),())
         else:
-            s_idx=PyString_FromStringAndSize(<char *>self.idx_ptr,self.my_len*sizeof(coordinate_t))
-            s_vals=PyString_FromStringAndSize(<char *>self.vals_ptr,self.my_len*sizeof(int))
+            s_idx=PyBytes_FromStringAndSize(<char *>self.idx_ptr,self.my_len*sizeof(coordinate_t))
+            s_vals=PyBytes_FromStringAndSize(<char *>self.vals_ptr,self.my_len*sizeof(int))
             return (SparseVectorI,(None,),(s_idx,s_vals))
     def __setstate__(self,state):
         cdef coordinate_t *p_idx
@@ -3030,11 +3030,11 @@ cdef class VecF1:
         f.write('F1 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
-            s=PyString_FromStringAndSize(<char *>c_VecF1_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemF1))
+            s=PyBytes_FromStringAndSize(<char *>c_VecF1_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemF1))
             f.write(s)
             k+=CHUNK_SIZE
         if k<n:
-            s=PyString_FromStringAndSize(<char *>c_VecF1_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemF1))
+            s=PyBytes_FromStringAndSize(<char *>c_VecF1_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemF1))
             f.write(s)
     def fromfile(self, f):
         cdef long i, n
@@ -3282,11 +3282,11 @@ cdef class VecF2:
         f.write('F2 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
-            s=PyString_FromStringAndSize(<char *>c_VecF2_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemF2))
+            s=PyBytes_FromStringAndSize(<char *>c_VecF2_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemF2))
             f.write(s)
             k+=CHUNK_SIZE
         if k<n:
-            s=PyString_FromStringAndSize(<char *>c_VecF2_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemF2))
+            s=PyBytes_FromStringAndSize(<char *>c_VecF2_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemF2))
             f.write(s)
     def fromfile(self, f):
         cdef long i, n
@@ -3534,11 +3534,11 @@ cdef class VecF3:
         f.write('F3 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
-            s=PyString_FromStringAndSize(<char *>c_VecF3_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemF3))
+            s=PyBytes_FromStringAndSize(<char *>c_VecF3_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemF3))
             f.write(s)
             k+=CHUNK_SIZE
         if k<n:
-            s=PyString_FromStringAndSize(<char *>c_VecF3_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemF3))
+            s=PyBytes_FromStringAndSize(<char *>c_VecF3_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemF3))
             f.write(s)
     def fromfile(self, f):
         cdef long i, n
@@ -4290,8 +4290,8 @@ cdef class SparseVectorF:
             # choose compatibility over performance.
             return (SparseVectorF,(list(self),),())
         else:
-            s_idx=PyString_FromStringAndSize(<char *>self.idx_ptr,self.my_len*sizeof(coordinate_t))
-            s_vals=PyString_FromStringAndSize(<char *>self.vals_ptr,self.my_len*sizeof(float))
+            s_idx=PyBytes_FromStringAndSize(<char *>self.idx_ptr,self.my_len*sizeof(coordinate_t))
+            s_vals=PyBytes_FromStringAndSize(<char *>self.vals_ptr,self.my_len*sizeof(float))
             return (SparseVectorF,(None,),(s_idx,s_vals))
     def __setstate__(self,state):
         cdef coordinate_t *p_idx
@@ -4514,11 +4514,11 @@ cdef class VecD1:
         f.write('D1 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
-            s=PyString_FromStringAndSize(<char *>c_VecD1_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemD1))
+            s=PyBytes_FromStringAndSize(<char *>c_VecD1_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemD1))
             f.write(s)
             k+=CHUNK_SIZE
         if k<n:
-            s=PyString_FromStringAndSize(<char *>c_VecD1_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemD1))
+            s=PyBytes_FromStringAndSize(<char *>c_VecD1_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemD1))
             f.write(s)
     def fromfile(self, f):
         cdef long i, n
@@ -4766,11 +4766,11 @@ cdef class VecD2:
         f.write('D2 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
-            s=PyString_FromStringAndSize(<char *>c_VecD2_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemD2))
+            s=PyBytes_FromStringAndSize(<char *>c_VecD2_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemD2))
             f.write(s)
             k+=CHUNK_SIZE
         if k<n:
-            s=PyString_FromStringAndSize(<char *>c_VecD2_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemD2))
+            s=PyBytes_FromStringAndSize(<char *>c_VecD2_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemD2))
             f.write(s)
     def fromfile(self, f):
         cdef long i, n
@@ -5018,11 +5018,11 @@ cdef class VecD3:
         f.write('D3 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
-            s=PyString_FromStringAndSize(<char *>c_VecD3_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemD3))
+            s=PyBytes_FromStringAndSize(<char *>c_VecD3_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemD3))
             f.write(s)
             k+=CHUNK_SIZE
         if k<n:
-            s=PyString_FromStringAndSize(<char *>c_VecD3_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemD3))
+            s=PyBytes_FromStringAndSize(<char *>c_VecD3_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemD3))
             f.write(s)
     def fromfile(self, f):
         cdef long i, n
@@ -5774,8 +5774,8 @@ cdef class SparseVectorD:
             # choose compatibility over performance.
             return (SparseVectorD,(list(self),),())
         else:
-            s_idx=PyString_FromStringAndSize(<char *>self.idx_ptr,self.my_len*sizeof(coordinate_t))
-            s_vals=PyString_FromStringAndSize(<char *>self.vals_ptr,self.my_len*sizeof(double))
+            s_idx=PyBytes_FromStringAndSize(<char *>self.idx_ptr,self.my_len*sizeof(coordinate_t))
+            s_vals=PyBytes_FromStringAndSize(<char *>self.vals_ptr,self.my_len*sizeof(double))
             return (SparseVectorD,(None,),(s_idx,s_vals))
     def __setstate__(self,state):
         cdef coordinate_t *p_idx
@@ -5986,11 +5986,11 @@ cdef class VecV1:
         f.write('V1 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
-            s=PyString_FromStringAndSize(<char *>c_VecV1_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemV1))
+            s=PyBytes_FromStringAndSize(<char *>c_VecV1_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemV1))
             f.write(s)
             k+=CHUNK_SIZE
         if k<n:
-            s=PyString_FromStringAndSize(<char *>c_VecV1_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemV1))
+            s=PyBytes_FromStringAndSize(<char *>c_VecV1_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemV1))
             f.write(s)
     def fromfile(self, f):
         cdef long i, n
@@ -6227,11 +6227,11 @@ cdef class VecV2:
         f.write('V2 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
-            s=PyString_FromStringAndSize(<char *>c_VecV2_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemV2))
+            s=PyBytes_FromStringAndSize(<char *>c_VecV2_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemV2))
             f.write(s)
             k+=CHUNK_SIZE
         if k<n:
-            s=PyString_FromStringAndSize(<char *>c_VecV2_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemV2))
+            s=PyBytes_FromStringAndSize(<char *>c_VecV2_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemV2))
             f.write(s)
     def fromfile(self, f):
         cdef long i, n
@@ -6472,11 +6472,11 @@ cdef class VecV3:
         f.write('V3 %d\n'%(n,))
         k=0
         for i from 0<=i<n/CHUNK_SIZE:
-            s=PyString_FromStringAndSize(<char *>c_VecV3_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemV3))
+            s=PyBytes_FromStringAndSize(<char *>c_VecV3_get_pointer(&self.vec,k), CHUNK_SIZE*sizeof(c_CItemV3))
             f.write(s)
             k+=CHUNK_SIZE
         if k<n:
-            s=PyString_FromStringAndSize(<char *>c_VecV3_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemV3))
+            s=PyBytes_FromStringAndSize(<char *>c_VecV3_get_pointer(&self.vec,k), (n-k)*sizeof(c_CItemV3))
             f.write(s)
     def fromfile(self, f):
         cdef long i, n
@@ -6659,8 +6659,8 @@ def run_test():
     mat2.print_csr()
     mat3=mat+mat2
     mat3.print_csr()
-    mat3.write_binary(file('/tmp/mat3','w'))
-    mat4=mmapCSR(file('/tmp/mat3'))
+    mat3.write_binary(open('/tmp/mat3','w'))
+    mat4=mmapCSR(open('/tmp/mat3'))
     mat4.print_csr()
     mat4=None
     mat5=mat3.transpose()

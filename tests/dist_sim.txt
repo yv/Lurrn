@@ -51,12 +51,15 @@ The dotMatrix method computes a dense vector y=Ax with A dense, x sparse
     array([  5.,  11.])
 
 Sparse vectors can be pickled and unpickled in both ASCII and binary formats
-    >>> import cPickle
-    >>> s=cPickle.dumps(aa)
-    >>> cPickle.loads(s)
+    >>> try:
+    ...  import cPickle as pickle
+    ... except ImportError:
+    ...  import pickle
+    >>> s=pickle.dumps(aa)
+    >>> pickle.loads(s)
     SparseVectorD([(1,1.0),(2,1.0)])
-    >>> s=cPickle.dumps(aa,-1)
-    >>> cPickle.loads(s)
+    >>> s=pickle.dumps(aa,-1)
+    >>> pickle.loads(s)
     SparseVectorD([(1,1.0),(2,1.0)])
 
 You can convert a VecD2 to a sparse matrix and transform it to get MI values

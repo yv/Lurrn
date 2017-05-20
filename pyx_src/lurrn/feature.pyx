@@ -1,4 +1,3 @@
-from itertools import izip
 cimport lurrn.sparsmat as sparsmat
 from lurrn import sparsmat
 from python_list cimport PyList_Append, PyList_GET_SIZE
@@ -8,6 +7,12 @@ import alphabet
 cimport alphabet
 import numpy
 cimport numpy
+
+try:
+    from itertools import izip
+except ImportError:
+    # Python 3+
+    izip = zip
 
 import sys
 from collections import defaultdict

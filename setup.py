@@ -24,13 +24,12 @@ class lazy_cythonize(list):
 CXX_STD_OPT = '-std=gnu++0x'
 
 def extensions():
+    import numpy
     try:
         from Cython.Build import cythonize
-        import numpy
-        incdirs = [numpy.get_include(), 'include', 'pyx_src', 'pyx_src/lurrn', '.']
     except ImportError:
         cythonize = lambda x: x
-        incdirs = []
+    incdirs = [numpy.get_include(), 'include', 'pyx_src', 'pyx_src/lurrn', '.']
     ext_modules = [Extension('lurrn.alphabet',
                              ['pyx_src/lurrn/alphabet.pyx'],
                              language='c++',
@@ -53,13 +52,14 @@ def extensions():
     return cythonize(ext_modules)
 
 setup(name='Lurrn',
-      version='0.7.3',
+      version='0.7.4a',
       description='Simple machine learning library',
       author='Yannick Versley',
-      author_email='versley@cl.uni-heidelberg.de',
+      author_email='yversley@gmail.com',
       ext_modules=lazy_cythonize(extensions),
       entry_points={
       },
+      long_description=open('README.md').read(),
       keywords=['machine learning', 'numpy'],
       packages=['lurrn'],
       package_dir={'': 'py_src'},

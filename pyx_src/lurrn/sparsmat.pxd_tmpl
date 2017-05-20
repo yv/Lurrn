@@ -5,7 +5,7 @@ cdef extern from "Python.h":
     int PyObject_AsReadBuffer(object obj, char **buffer, Py_ssize_t *buffer_len) except -1
     int PyObject_CheckReadBuffer(object o)
     int PyObject_AsWriteBuffer(object obj, char **buffer, Py_ssize_t *buffer_len) except -1
-    object PyString_FromStringAndSize(char *v, Py_ssize_t len)
+    object PyBytes_FromStringAndSize(char *v, Py_ssize_t len)
     void *PyMem_Malloc(int)
     void PyMem_Free(void *p)
 
@@ -37,7 +37,7 @@ cdef extern from "cxx_gram.h":
         int *addr
 {%- if T!='V' %}
         {{tt}} item
-    struct c_Vector{{T}} "std::vector<{{tt}}>":
+    cppclass c_Vector{{T}} "std::vector<{{tt}}>":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)
@@ -45,10 +45,10 @@ cdef extern from "cxx_gram.h":
         {{tt}} at(int pos)
         void cxx_destructor "~vector" ()
 {%- endif %}
-    struct c_VecIter{{T}}{{N}} "std::vector<CountItem<{{N}},{{tt}}> >::iterator"
+    cppclass c_VecIter{{T}}{{N}} "std::vector<CountItem<{{N}},{{tt}}> >::iterator"
     struct c_SmallerAddr{{T}}{{N}} "smallerAddr<{{N}},{{tt}}>":
         pass
-    struct c_Vec{{T}}{{N}} "std::vector<CountItem<{{N}},{{tt}}> >":
+    cppclass c_Vec{{T}}{{N}} "std::vector<CountItem<{{N}},{{tt}}> >":
         size_t size()
         void reserve(size_t n)
         void resize(size_t n)

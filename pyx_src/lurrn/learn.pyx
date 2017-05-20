@@ -136,7 +136,7 @@ cdef class AdaGrad:
                                   self.fc))
     def save_binary(self, fname_out):
         numbers = numpy.asarray(self.avgWeights)/self.timestep
-        with file(fname_out, 'w') as f:
+        with open(fname_out, 'w') as f:
             numpy.save(f, numbers)
 
 cdef class SgdMomentum:
@@ -242,7 +242,7 @@ cdef class SgdMomentum:
 
     def save_binary(self, fname_out):
         numbers = self.get_weights()
-        with file(fname_out, 'w') as f:
+        with open(fname_out, 'w') as f:
             numpy.save(f, numbers)
 
 cdef class AvgPer:
@@ -300,7 +300,7 @@ cdef class AvgPer:
                                   self.fc))
     def save_binary(self, fname_out):
         numbers = numpy.asarray(self.avgWeights)/self.timestep
-        with file(fname_out, 'w') as f:
+        with open(fname_out, 'w') as f:
             numpy.save(f, numbers)
 
 cdef class AvgMira:
@@ -414,7 +414,7 @@ cdef class AvgMira:
                                   self.fc))
     def save_binary(self, fname_out):
         numbers = numpy.asarray(self.avgWeights)/self.timestep
-        with file(fname_out, 'w') as f:
+        with open(fname_out, 'w') as f:
             numpy.save(f, numbers)
 # The MIRA implementation in Moses has the following additional stuff:
 # - averaging only over current epoch (instead of all seen weight vectors)

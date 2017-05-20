@@ -14,7 +14,7 @@ env.globals['wanted_types']=wanted_types
 for basename in ['pyx_src/lurrn/sparsmat.pxd',
                  'pyx_src/lurrn/sparsmat.pyx']:
     tmpl=env.get_template(basename+'_tmpl')
-    f=file(basename,'w')
+    f=open(basename,'w')
     f.write(tmpl.render())
     f.close()
 
